@@ -684,169 +684,141 @@ def save_extra_channels_snapshots(channels_stats: List[Dict[str, Any]], date_str
             save_extra_channel_snapshot(channel_key, stats, date_str)
 
 
-def build_stats_embed(stats: Dict[str, Any]) -> discord.Embed:
-    comparison = stats.get("comparison")
-    total_delta = stats.get("total_views_delta")
-    channel_total_views = stats.get("channel_total_views")
-    channel_total_views_delta = stats.get("channel_total_views_delta")
-    subscriber_count = stats.get("subscriber_count")
-    subscriber_delta = stats.get("subscriber_count_delta")
-    prev_date = None
-    if comparison:
-        prev_date = datetime.strptime(comparison["previous_date"], "%Y-%m-%d").strftime("%d.%m.%Y")
-
-    if comparison and total_delta is not None:
-        total_value = f"**{format_views(stats['total_views'])}** ({format_delta(total_delta)})"
-    else:
-        total_value = (
-            f"**{format_views(stats['total_views'])}** łącznie\n"
-            "_Pierwszy pomiar — jutro pojawi się porównanie doby._"
-        )
-
-    if channel_total_views is None:
-        channel_total_value = "_Ogólne wyświetlenia kanału są niedostępne._"
-    elif prev_date and channel_total_views_delta is not None:
-        channel_total_value = (
-            f"**{format_views(channel_total_views)}** ({format_delta(channel_total_views_delta)})"
-        )
-    else:
-        channel_total_value = (
-            f"**{format_views(channel_total_views)}** łącznie\n"
-            "_Pierwszy pomiar — jutro pojawi się porównanie doby._"
-        )
-
-    if subscriber_count is None:
-        subscriber_value = "_Liczba subskrybentów jest ukryta lub niedostępna._"
-    elif prev_date and subscriber_delta is not None:
-        subscriber_value = f"**{format_views(subscriber_count)}** ({format_delta(subscriber_delta)})"
-    else:
-        subscriber_value = (
-            f"**{format_views(subscriber_count)}** łącznie\n"
-            "_Pierwszy pomiar — jutro pojawi się porównanie doby._"
-        )
-
-    medals = ["🥇", "🥈", "🥉"]
-    growth_lines = []
-    for index, video in enumerate(stats.get("top_3_growth", [])):
-        medal = medals[index] if index < len(medals) else f"{index + 1}."
-        title = video["title"]
-        if len(title) > 70:
-            title = title[:67] + "..."
-        new_badge = " 🆕" if video.get("is_new") else ""
-        growth_lines.append(
-            f"{medal} [{title}]({video['url']}){new_badge}\n"
-            f"　**{format_delta(video['views_delta'])}** "
-            f"_(łącznie {format_views(video['views'])})_"
-        )
-
-    outside_growth = stats.get("top_outside_growth")
-    if outside_growth:
-        outside_title = outside_growth["title"]
-        if len(outside_title) > 70:
-            outside_title = outside_title[:67] + "..."
-        new_badge = " 🆕" if outside_growth.get("is_new") else ""
-        outside_value = (
-            f"[{outside_title}]({outside_growth['url']}){new_badge}\n"
-            f"**{format_delta(outside_growth['views_delta'])}** "
-            f"_(łącznie {format_views(outside_growth['views'])})_"
-        )
-    elif comparison:
-        outside_value = "_Brak wzrostu poza top 3 z ostatnich 20 filmów._"
-    else:
-        outside_value = "_Brak danych porównawczych._"
-
-    embed = discord.Embed(
-        title="📊 Nisza Kickowa — statystyki dobowe",
-        color=discord.Color.green(),
-        timestamp=datetime.now(),
-    )
-    embed.add_field(
-        name="Wyświetlenia (ostatnie 20)",
-        value=total_value,
-        inline=False,
-    )
-    embed.add_field(
-        name="Ogólne wyświetlenia kanału",
-        value=channel_total_value,
-        inline=False,
-    )
-    embed.add_field(
-        name="Suby",
-        value=subscriber_value,
-        inline=False,
-    )
-    embed.add_field(
-        name="Top 3 wzrostu w ciągu doby",
-        value="\n".join(growth_lines) if growth_lines else "_Brak danych porównawczych._",
-        inline=False,
-    )
-    embed.add_field(
-        name="Największy skok spoza top 3",
-        value=outside_value,
-        inline=False,
-    )
-
-    if stats.get("channel_thumbnail"):
-        embed.set_thumbnail(url=stats["channel_thumbnail"])
-    embed.set_footer(text="YouTube Data API • porównanie względem poprzedniego dnia")
-    return embed
-
-
 def _truncate_title(title: str, max_len: int = 55) -> str:
     if len(title) <= max_len:
         return title
     return title[: max_len - 3] + "..."
 
 
-def build_extra_channels_embed(channels_stats: List[Dict[str, Any]]) -> Optional[discord.Embed]:
-    if not channels_stats:
-        return None
+def _youtube_metric(label: str, value: Optional[int], delta: Optional[int]) -> str:
+    if value is None:
+        return f"**{label}:** _niedostępne_"
+    change = f" ({format_delta(delta)})" if delta is not None else " _(pierwszy pomiar)_"
+    return f"**{label}:** {format_views(value)}{change}"
 
+
+def _youtube_growth_lines(videos: List[Dict[str, Any]], limit: int = 3) -> str:
+    medals = ["🥇", "🥈", "🥉"]
     lines = []
-    for stats in channels_stats:
-        title = stats["channel_title"]
-        total_delta = stats.get("total_views_delta")
-        subscriber_count = stats.get("subscriber_count")
-        subscriber_delta = stats.get("subscriber_count_delta")
-        if total_delta is not None:
-            line = f"**{title}** — {format_delta(total_delta)}"
-        else:
-            line = f"**{title}** — _pierwszy pomiar_"
+    for index, video in enumerate(videos[:limit]):
+        title = _truncate_title(video.get("title", "Bez tytułu"), 65)
+        badge = " 🆕" if video.get("is_new") else ""
+        medal = medals[index] if index < len(medals) else f"{index + 1}."
+        lines.append(
+            f"{medal} [{title}]({video['url']}){badge} · "
+            f"**{format_delta(video.get('views_delta', 0))}** "
+            f"({format_views(video.get('views', 0))})"
+        )
+    return "\n".join(lines) if lines else "_Brak danych porównawczych._"
 
-        if subscriber_count is None:
-            line += "\n▸ Suby: _ukryte lub niedostępne_"
-        elif subscriber_delta is not None:
-            line += (
-                f"\n▸ Suby: **{format_views(subscriber_count)} ({format_delta(subscriber_delta)})**"
-            )
-        else:
-            line += (
-                f"\n▸ Suby: **{format_views(subscriber_count)}** "
-                "(_pierwszy pomiar_)"
-            )
 
-        top_videos = stats.get("top_growth") or []
-        for top_video in top_videos:
-            video_title = _truncate_title(top_video["title"])
-            new_badge = " 🆕" if top_video.get("is_new") else ""
-            line += (
-                f"\n▸ [{video_title}]({top_video['url']}){new_badge} "
-                f"**{format_delta(top_video['views_delta'])}**"
-            )
-        lines.append(line)
+def _add_youtube_channel_block(
+    container: discord.ui.Container,
+    stats: Dict[str, Any],
+    heading: str,
+    *,
+    include_channel_total: bool = False,
+) -> None:
+    comparison = stats.get("comparison")
+    previous_date = comparison.get("previous_date") if comparison else None
+    if previous_date:
+        previous_date = datetime.strptime(previous_date, "%Y-%m-%d").strftime("%d.%m.%Y")
 
-    embed = discord.Embed(
-        title="🎵 jarro — statystyki dobowe",
-        description="\n\n".join(lines),
-        color=discord.Color.purple(),
-        timestamp=datetime.now(),
+    metrics = [
+        _youtube_metric(
+            "Wyświetlenia ostatnich 20",
+            stats.get("total_views"),
+            stats.get("total_views_delta"),
+        ),
+        _youtube_metric(
+            "Suby",
+            stats.get("subscriber_count"),
+            stats.get("subscriber_count_delta"),
+        ),
+    ]
+    if include_channel_total:
+        metrics.insert(
+            1,
+            _youtube_metric(
+                "Łączne wyświetlenia:",
+                stats.get("channel_total_views"),
+                stats.get("channel_total_views_delta"),
+            ),
+        )
+
+    subtitle = f"" if previous_date else "-# pierwszy pomiar — jutro pojawi się porównanie"
+    header_text = f"## {heading}\n{subtitle}"
+    thumbnail_url = stats.get("channel_thumbnail")
+    if thumbnail_url:
+        container.add_item(
+            discord.ui.Section(
+                discord.ui.TextDisplay(header_text),
+                discord.ui.TextDisplay("\n".join(metrics)),
+                accessory=discord.ui.Thumbnail(thumbnail_url, description=heading),
+            )
+        )
+    else:
+        container.add_item(discord.ui.TextDisplay(header_text + "\n" + "\n".join(metrics)))
+
+    container.add_item(discord.ui.TextDisplay("### 📈 Największe wzrosty\n" + _youtube_growth_lines(stats.get("top_3_growth") or stats.get("top_growth") or [])))
+
+
+def build_youtube_stats_view(
+    stats: Dict[str, Any],
+    extra_stats: List[Dict[str, Any]],
+) -> discord.ui.LayoutView:
+    """Build one modern Components V2 card for all daily YouTube statistics."""
+    view = discord.ui.LayoutView(timeout=None)
+    container = discord.ui.Container(accent_color=0xE53935)
+    container.add_item(
+        discord.ui.TextDisplay(
+            "# 📊 YouTube — statystyki dobowe\n"
+        )
     )
-    for stats in channels_stats:
-        if stats.get("channel_key") == "jarrobeats" and stats.get("channel_thumbnail"):
-            embed.set_thumbnail(url=stats["channel_thumbnail"])
-            break
-    embed.set_footer(text="YouTube Data API • porównanie względem poprzedniego dnia")
-    return embed
+    container.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.large))
+
+    _add_youtube_channel_block(
+        container,
+        stats,
+        "🎥 Nisza Kickowa",
+        include_channel_total=True,
+    )
+
+    if extra_stats:
+        container.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.large))
+        #container.add_item(discord.ui.TextDisplay("## 🎵 jarro"))
+        for index, channel_stats in enumerate(extra_stats):
+            if index:
+                container.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.small))
+            _add_youtube_channel_block(
+                container,
+                channel_stats,
+                channel_stats.get("channel_title", "Kanał jarro"),
+            )
+
+    container.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.small))
+    container.add_item(
+        discord.ui.TextDisplay(
+            f"-# źródło: YouTube Data API · wygenerowano o {datetime.now().strftime('%H:%M')}"
+        )
+    )
+    view.add_item(container)
+    return view
+
+
+def fetch_youtube_stats_bundle(
+    config: Optional[Dict[str, Any]] = None,
+    reference_date: Optional[str] = None,
+) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+    """Fetch Nisza and jarro statistics for both manual and automatic sends."""
+    config = config or load_config()
+    video_limit = int(config.get("video_count", 20))
+    stats = fetch_shorts_stats_with_comparison(config, reference_date=reference_date)
+    extra_stats = fetch_extra_channels_stats_with_comparison(
+        reference_date=reference_date,
+        limit=video_limit,
+    )
+    return stats, extra_stats
 
 
 async def run_daily_stats_if_due(client: discord.Client) -> None:
@@ -875,16 +847,10 @@ async def run_daily_stats_if_due(client: discord.Client) -> None:
         return
 
     try:
-        stats = fetch_shorts_stats_with_comparison(config, reference_date=today)
+        stats, extra_stats = fetch_youtube_stats_bundle(config, reference_date=today)
     except Exception as e:
         print(f"[YT Shorts] Daily fetch failed: {e}")
         return
-
-    video_limit = int(config.get("video_count", 20))
-    extra_stats = fetch_extra_channels_stats_with_comparison(
-        reference_date=today,
-        limit=video_limit,
-    )
 
     channel = client.get_channel(int(channel_id))
     if not channel:
@@ -896,13 +862,10 @@ async def run_daily_stats_if_due(client: discord.Client) -> None:
         print(f"[YT Shorts] Cannot find Discord channel {channel_id}")
         return
 
-    embeds = [build_stats_embed(stats)]
-    extra_embed = build_extra_channels_embed(extra_stats)
-    if extra_embed:
-        embeds.append(extra_embed)
+    view = build_youtube_stats_view(stats, extra_stats)
 
     try:
-        await channel.send(embeds=embeds)
+        await channel.send(view=view)
         print(f"[YT Shorts] Posted daily stats to #{channel_id}")
     except Exception as e:
         print(f"[YT Shorts] Failed to post daily stats: {e}")
@@ -947,14 +910,9 @@ async def setup_youtube_shorts(
         await interaction.response.defer()
         try:
             config = load_config()
-            video_limit = int(config.get("video_count", 20))
-            stats = fetch_shorts_stats_with_comparison()
-            extra_stats = fetch_extra_channels_stats_with_comparison(limit=video_limit)
-            embeds = [build_stats_embed(stats)]
-            extra_embed = build_extra_channels_embed(extra_stats)
-            if extra_embed:
-                embeds.append(extra_embed)
-            await interaction.followup.send(embeds=embeds)
+            stats, extra_stats = fetch_youtube_stats_bundle(config)
+            view = build_youtube_stats_view(stats, extra_stats)
+            await interaction.followup.send(view=view)
 
             daily_channel_id = config.get("discord_channel_id")
             offset_hours = int(config.get("send_offset_hours", 0))
