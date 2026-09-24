@@ -559,7 +559,7 @@ def build_memory_view(post: Dict[str, Any], discord_filename: str) -> discord.ui
     container.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.small))
     container.add_item(
         discord.ui.TextDisplay(
-            f"-# wysłano o {sent_at} · folder: `{route}`"
+            f"-# Wysłano o {sent_at} · folder: `{route}`"
         )
     )
     view.add_item(container)
