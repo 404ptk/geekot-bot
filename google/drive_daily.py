@@ -523,23 +523,55 @@ def prepare_random_post(config: Optional[Dict[str, Any]] = None) -> Dict[str, An
     }
 
 
-def build_memory_embed(post: Dict[str, Any]) -> discord.Embed:
-    description = f"**{post['name']}**"
-    if post.get("reset_pool"):
-        description += "\n_Kolekcja się skończyła — losujemy od nowa._"
+def build_memory_view(post: Dict[str, Any], discord_filename: str) -> discord.ui.LayoutView:
+    """Build a compact Components V2 card for one Drive memory."""
+    attachment_url = f"attachment://{discord_filename}"
+    kind = "nagranie" if post.get("is_video") else "zdjęcie"
+    sent_at = datetime.now().strftime("%H:%M")
+    route = post.get("route_path") or "główny folder"
 
-    return discord.Embed(
-        title=f"📸 Losowe wspomnienie",
-        description=description,
-        color=discord.Color.blue(),
-        timestamp=datetime.now(),
+    view = discord.ui.LayoutView(timeout=None)
+    container = discord.ui.Container(accent_color=0x5865F2)
+    container.add_item(
+        discord.ui.MediaGallery(
+            discord.MediaGalleryItem(
+                attachment_url,
+                description=f"{post['name']} — {kind}",
+            )
+        )
     )
+    container.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.large))
+    container.add_item(
+        discord.ui.TextDisplay(
+            f"## 📸 Losowe wspomnienie\n"
+            f"-# {post['name']}\n"
+        )
+    )
+
+    if post.get("reset_pool"):
+        container.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.small))
+        container.add_item(
+            discord.ui.TextDisplay(
+                "-# Pula wspomnień została wyczerpana — losujemy od nowa."
+            )
+        )
+
+    container.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.small))
+    container.add_item(
+        discord.ui.TextDisplay(
+            f"-# wysłano o {sent_at} · folder: `{route}`"
+        )
+    )
+    view.add_item(container)
+    return view
 
 
 async def send_random_memory(
     client: discord.Client,
     channel_id: int,
     config: Optional[Dict[str, Any]] = None,
+    *,
+    persist_state: bool = True,
 ) -> Dict[str, Any]:
     loop = asyncio.get_running_loop()
     post = await loop.run_in_executor(None, prepare_random_post, config)
@@ -548,29 +580,29 @@ async def send_random_memory(
     if not channel:
         channel = await client.fetch_channel(channel_id)
 
-    embed = build_memory_embed(post)
     discord_filename = post.get("discord_filename", post["name"])
     try:
         await channel.send(
-            embed=embed,
+            view=build_memory_view(post, discord_filename),
             file=discord.File(str(post["local_path"]), filename=discord_filename),
         )
     finally:
         post["local_path"].unlink(missing_ok=True)
 
-    state = load_state()
-    sent_ids = state.setdefault("sent_ids", [])
-    if post["file_id"] not in sent_ids:
-        sent_ids.append(post["file_id"])
-    record_recent_route(state, post.get("route_path", ""))
+    if persist_state:
+        state = load_state()
+        sent_ids = state.setdefault("sent_ids", [])
+        if post["file_id"] not in sent_ids:
+            sent_ids.append(post["file_id"])
+        record_recent_route(state, post.get("route_path", ""))
 
-    config = config or load_config()
-    daily_channel_id = config.get("discord_channel_id")
-    offset_hours = int(config.get("send_offset_hours", 0))
-    if daily_channel_id and int(channel_id) == int(daily_channel_id):
-        mark_sent_today(state, save_state, offset_hours=offset_hours)
-    else:
-        save_state(state)
+        config = config or load_config()
+        daily_channel_id = config.get("discord_channel_id")
+        offset_hours = int(config.get("send_offset_hours", 0))
+        if daily_channel_id and int(channel_id) == int(daily_channel_id):
+            mark_sent_today(state, save_state, offset_hours=offset_hours)
+        else:
+            save_state(state)
 
     return post
 
