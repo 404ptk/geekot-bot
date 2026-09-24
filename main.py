@@ -1,0 +1,495 @@
+import random
+from datetime import date
+
+import discord
+from discord import app_commands
+from discord.ext import commands
+import requests
+import os
+import re
+from discord.ext import commands, tasks
+import json
+import asyncio
+import datetime
+from datetime import datetime, timedelta
+import sys
+import threading
+
+from twitch_utils import *
+from masny_utils import *
+from faceit_utils import *
+from kick_utils import *
+from commands import games as games_module
+from commands import fun as fun_module
+from commands import help as help_module
+from commands import excuses as excuses_module
+from commands import instants
+from commands import challenges as challenges_module
+from commands import twitch_kick
+from commands import mod as mod_module
+from commands import minecraft
+import faceit_utils
+import masny_utils
+from commands import football
+import leetify_utils
+from commands import steam as steam_module
+from commands import relations as relations_module
+from commands import wakacje as wakacje_module
+from commands import aktywnosc as aktywnosc_module
+from commands import fifa as fifa_module
+from jobs import setup_jobs_watch
+from pathlib import Path
+
+# Moduły w google/ — folder bez __init__.py, żeby nie kolidować z pip google.*
+sys.path.insert(0, str(Path(__file__).resolve().parent / "google"))
+
+import drive_daily as drive_daily_module
+import youtube_shorts as youtube_shorts_module
+from startup_logger import record_startup_step, print_startup_summary
+from startup_guard import mark_bot_started, is_startup_freeze_active, STARTUP_FREEZE_MINUTES
+
+
+games_data = games_module.load_games(startup_label="Games data")  # commands/games.py
+
+
+# from soundcloud_utils import *
+
+
+# TODO:
+#   dodać wynik meczu przy !last (tzn. np 13:10)
+#   pobawić się z api spotify
+#   !premier - raczej ciezkie do zrobienia
+#   sprawdzanie cen skrzynek z csa
+
+
+# Function to read a token from a file
+def load_token(filename, startup_label=None):
+    try:
+        with open(filename, 'r') as file:
+            token = file.read().strip()
+            if startup_label:
+                record_startup_step(startup_label, True, filename)
+            else:
+                print(f"Loaded file: {filename}")
+            return token
+    except FileNotFoundError:
+        if startup_label:
+            record_startup_step(startup_label, False, f"{filename} not found")
+        else:
+            print(f"File not found: {filename}. Make sure the file exists.")
+        return None
+    except Exception as e:
+        if startup_label:
+            record_startup_step(startup_label, False, f"{filename}: {e}")
+        else:
+            print(f"Error loading token from {filename}: {e}")
+        return None
+
+
+# Load startup tokens
+DISCORD_TOKEN = load_token('txt/discord_token.txt', startup_label="Discord token")
+
+# Tworzenie klienta Discord
+intents = discord.Intents.default()
+intents.message_content = True
+intents.members = True
+intents.presences = True
+intents.voice_states = True
+client = commands.Bot(command_prefix="!", intents=intents)
+
+reaction_name = "phester102"
+reaction_active = False
+startup_completed = False
+
+
+def save_reaction_state():
+    with open('txt/reaction_state.json', 'w') as f:
+        json.dump({'reaction_active': reaction_active}, f)
+
+
+def load_reaction_state(startup_label=None):
+    global reaction_active
+    try:
+        with open('txt/reaction_state.json', 'r') as f:
+            data = json.load(f)
+            reaction_active = data.get('reaction_active', False)
+        if startup_label:
+            record_startup_step(startup_label, True, 'txt/reaction_state.json')
+        else:
+            print("Loaded file: txt/reaction_state.json")
+    except FileNotFoundError:
+        reaction_active = False
+        if startup_label:
+            record_startup_step(startup_label, False, 'txt/reaction_state.json not found')
+        else:
+            print("Error reading txt/reaction_state.json.")
+
+STATS_FILE = "txt/user_stats.json"
+STATS_HISTORY_FILE = "txt/user_stats_history.json"
+def load_json(file_path, startup_label=None):
+    try:
+        with open(file_path, "r") as file:
+            data = json.load(file)
+            if startup_label:
+                record_startup_step(startup_label, True, file_path)
+            else:
+                print(f"Loaded file: {file_path}")
+            return data
+    except (FileNotFoundError, json.JSONDecodeError):
+        if startup_label:
+            record_startup_step(startup_label, False, f"{file_path} missing or invalid")
+        else:
+            print(f"Error loading {file_path}.")
+        return {}
+
+def save_json(data, file_path):
+    with open(file_path, "w") as file:
+        json.dump(data, file, indent=4)
+
+
+TARGET_USER_NAME = "phester102"
+user_connection_count = 0
+user_stats = load_json(STATS_FILE, startup_label="User stats")
+user_stats_history = load_json(STATS_HISTORY_FILE, startup_label="User stats history")
+current_date = datetime.now().strftime("%Y-%m-%d")
+user_stats.setdefault(current_date, 0)
+user_stats_history.setdefault(current_date, 0)
+save_json(user_stats, STATS_FILE)
+save_json(user_stats_history, STATS_HISTORY_FILE)
+
+
+def polaczenie_label(count: int) -> str:
+    if count == 1:
+        return "połączenie"
+    elif 2 <= count <= 4:
+        return "połączenia"
+    else:
+        return "połączeń"
+
+GUILD_ID = 551503797067710504
+
+# Start a background listener that shuts down the bot when 'stop' is typed in the console
+
+def start_console_listener():
+    def _listen():
+        try:
+            for line in sys.stdin:
+                if line.strip().lower() == "stop":
+                    print("Console command 'stop' received. Shutting down bot...")
+                    try:
+                        fut = asyncio.run_coroutine_threadsafe(client.close(), client.loop)
+                        fut.result(timeout=10)
+                    except Exception as e:
+                        print(f"Error during shutdown: {e}")
+                    os._exit(0)
+        except Exception as e:
+            print(f"Console listener error: {e}")
+    t = threading.Thread(target=_listen, daemon=True)
+    t.start()
+
+# Obsługa zdarzenia - gdy bot jest gotowy
+@client.event
+async def on_ready():
+    global startup_completed
+
+    if startup_completed:
+        print("[Startup] on_ready was called again; startup steps were already completed.")
+        return
+
+    # send_daily_stats(client)
+    load_reaction_state(startup_label="Reaction state")
+
+    async def run_startup_step(step_name, step_coroutine):
+        try:
+            await step_coroutine
+            record_startup_step(step_name, True)
+        except Exception as exc:
+            record_startup_step(step_name, False, str(exc))
+
+    startup_steps = [
+        ("Games commands", games_module.setup_games_commands(client, client.tree)),
+        ("Fun commands", fun_module.setup_fun_commands(client, client.tree, guild_id=GUILD_ID)),
+        ("Excuses commands", excuses_module.setup_excuses_commands(client, client.tree, guild_id=GUILD_ID)),
+        ("Minecraft commands", minecraft.setup_minecraft_commands(client, client.tree, guild_id=GUILD_ID)),
+        ("Help commands", help_module.setup_help_commands(client, client.tree, guild_id=GUILD_ID)),
+        ("Instants commands", instants.setup_instants_commands(client, client.tree, guild_id=GUILD_ID)),
+        ("Twitch/Kick commands", twitch_kick.setup_twitch_kick_commands(client, client.tree, guild_id=551503797067710504)),
+        ("Challenges commands", challenges_module.setup_challenges_commands(client, client.tree, guild_id=GUILD_ID)),
+        ("Mod commands", mod_module.setup_mod_commands(client, client.tree, guild_id=GUILD_ID)),
+        ("Faceit commands", faceit_utils.setup_faceit_commands(client, client.tree, guild_id=GUILD_ID)),
+        ("Masny commands", masny_utils.setup_masny_commands(client, client.tree, guild_id=GUILD_ID)),
+        ("Football commands", football.setup_football_commands(client, client.tree, guild_id=GUILD_ID)),
+        ("Leetify commands", leetify_utils.setup_leetify_commands(client, client.tree, guild_id=GUILD_ID)),
+        ("Steam commands", steam_module.setup_steam_commands(client, client.tree, guild_id=GUILD_ID)),
+        ("Relations commands", relations_module.setup_relations_commands(client, client.tree, guild_id=GUILD_ID)),
+        ("Wakacje commands", wakacje_module.setup_wakacje_commands(client, client.tree)),
+        ("Activity commands", aktywnosc_module.setup_aktywnosc_commands(client, client.tree, guild_id=GUILD_ID)),
+        ("FIFA account status", fifa_module.setup_fifa_commands(client)),
+        ("YouTube Shorts", youtube_shorts_module.setup_youtube_shorts(client, client.tree, guild_id=GUILD_ID)),
+        ("Drive daily memory", drive_daily_module.setup_drive_daily(client, client.tree, guild_id=GUILD_ID)),
+        ("Jobs watcher", setup_jobs_watch(client, client.tree, guild_id=GUILD_ID)),
+    ]
+
+    for step_name, step_coroutine in startup_steps:
+        await run_startup_step(step_name, step_coroutine)
+    # await youtube_watch.setup_youtube_watch(client, client.tree, guild_id=GUILD_ID)  # start watcher
+
+    startup_completed = True
+    mark_bot_started()
+    print_startup_summary()
+
+    freeze_note = (
+        f"\n- Startup freeze: {STARTUP_FREEZE_MINUTES} min (oferty pracy, update CS2)"
+        if is_startup_freeze_active()
+        else ""
+    )
+    print(f'\n{client.user} has connected to Discord!\n\n'
+          f'\nOptions:'
+          f'\n- Reacting to {reaction_name}: {reaction_active}'
+          f'{freeze_note}')
+    await client.change_presence(activity=discord.Game(name="/geek - Jestem geekiem"))
+
+    # client.loop.create_task(reset_connection_count())
+
+channel_id = 1346496307023581274  # anty-plaster
+# Obsługa wiadomości użytkowników
+@client.event
+async def on_presence_update(before: discord.Member, after: discord.Member):
+    global user_stats
+    if after.name == TARGET_USER_NAME:
+        old_status = before.status
+        new_status = after.status
+
+        if old_status == discord.Status.offline and new_status != discord.Status.offline:
+            current_date = datetime.now().strftime("%Y-%m-%d")
+            user_stats[current_date] = user_stats.get(current_date, 0) + 1
+            user_stats_history[current_date] = user_stats_history.get(current_date, 0) + 1
+            save_json(user_stats, STATS_FILE)
+            save_json(user_stats_history, STATS_HISTORY_FILE)
+
+            channel = after.guild.get_channel(channel_id)
+            if channel:
+                embed = discord.Embed(
+                    title="ALARM!",
+                    description=f"Użytkownik **{after.name}** jest teraz dostępny!\n"
+                                f"To **{user_stats[current_date]}. połączenie** dzisiaj!",
+                    color=discord.Color.red()
+                )
+                embed.set_image(url="https://media.discordapp.net/attachments/1346496307023581274/1346496972965679175/"
+                                    "2D0BF743-1673-4F01-B648-7FFBD12D6950.png?ex=67c86687&is=67c71507&hm=bf2f675228c76"
+                                    "d53ad74fd422679d6cc867073c5bec4698ee75abc09abdc1fad&=&format=webp&quality=lossless")
+
+                print(f"{TARGET_USER_NAME} is online! To {user_stats[current_date]}. połączenie dziś.")
+                await channel.send(embed=embed)
+
+
+# async def start_reset_task():
+#     """Rozpoczyna asynchroniczny reset licznika statystyk co 24h."""
+#     await reset_connection_count()
+
+
+@client.event
+async def on_message(message):
+    global reaction_active
+    if message.author == client.user:
+        return
+
+    if "https://x.com/" in message.content:
+        pattern = r"https://x\.com/[\w\d_]+/status/\d+"
+        matches = re.findall(pattern, message.content)
+
+        if matches:
+            # Usuń podgląd z oryginalnej wiadomości użytkownika
+            try:
+                await message.edit(suppress=True)  # Wyłącza wszystkie embedy
+            except discord.Forbidden:
+                print("Bot nie ma uprawnień do edycji wiadomości!")
+            except discord.HTTPException as e:
+                print(f"Błąd podczas edycji wiadomości: {e}")
+
+            # Wysyłanie poprawionych linków (bez suppress_embeds, jeśli chcesz, aby bot pokazywał podgląd)
+            for link in matches:
+                fixed_link = link.replace("x.com", "fixvx.com")
+                await message.reply(fixed_link)  # Tu możesz dodać suppress_embeds=False, jeśli chcesz
+
+    if message.content.startswith('!plaster'):
+        has_high_tier_guard = any(role.name.lower() == "high tier guard" for role in message.author.roles)
+
+        if not has_high_tier_guard:
+            await message.channel.send("nice try xd")
+            return
+
+        if not reaction_active:
+            reaction_active = True
+            await message.channel.send(f"Włączono reagowanie na {reaction_name}")
+            print(f"Reacting to {reaction_name}: {reaction_active}")
+        else:
+            reaction_active = False
+            await message.channel.send(f"Wyłączono reagowanie na {reaction_name}")
+            print(f"Reacting to {reaction_name}: {reaction_active}")
+
+        save_reaction_state()
+
+    if reaction_active and message.author.name.lower() == reaction_name:
+        await message.add_reaction("🥶")
+
+    if message.content.startswith('!guildsync'):
+        if message.author.id != 443406275716579348:  # OWNER_ID from mod.py
+            await message.channel.send("❌ Nie masz uprawnień do synchronizacji komend.", delete_after=5)
+            return
+            
+        try:
+            guild = discord.Object(id=message.guild.id)
+            synced = await client.tree.sync(guild=guild)
+            await message.channel.send(f"✅ Zsynchronizowano {len(synced)} komend slash dla tego serwera.")
+            print(f"Zsynchronizowano {len(synced)} komend dla serwera {message.guild.name}")
+        except Exception as e:
+            await message.channel.send(f"❌ Błąd synchronizacji: {e}")
+            
+    if message.content.startswith('!clearcmds'):
+        if message.author.id != 443406275716579348:  # OWNER_ID from mod.py
+            await message.channel.send("❌ Nie masz uprawnień do tej operacji.", delete_after=5)
+            return
+            
+        try:
+            guild = discord.Object(id=message.guild.id)
+            client.tree.clear_commands(guild=guild)
+            await client.tree.sync(guild=guild)
+            await message.channel.send("✅ Wyczyszczono komendy slash dla tego serwera.")
+            print(f"Wyczyszczono komendy dla serwera {message.guild.name}")
+        except Exception as e:
+            await message.channel.send(f"❌ Błąd podczas czyszczenia komend: {e}")
+
+    if message.content == "!infoplaster" and message.channel.id == 1346496307023581274:
+        stats = load_json(STATS_FILE)
+        history = load_json(STATS_HISTORY_FILE)
+
+        last_7_days = sorted(stats.items(), key=lambda x: x[0], reverse=True)[:7]
+        max_day = max(last_7_days, key=lambda x: x[1])
+        nonzero_history = {k: v for k, v in history.items() if v > 0}
+        history_max = max(nonzero_history.items(), key=lambda x: x[1]) if nonzero_history else ("Brak", 0)
+
+        dni_tygodnia = {
+            "Monday": "Poniedziałek",
+            "Tuesday": "Wtorek",
+            "Wednesday": "Środa",
+            "Thursday": "Czwartek",
+            "Friday": "Piątek",
+            "Saturday": "Sobota",
+            "Sunday": "Niedziela"
+        }
+
+        miesiace = {
+            "January": "stycznia",
+            "February": "lutego",
+            "March": "marca",
+            "April": "kwietnia",
+            "May": "maja",
+            "June": "czerwca",
+            "July": "lipca",
+            "August": "sierpnia",
+            "September": "września",
+            "October": "października",
+            "November": "listopada",
+            "December": "grudnia",
+        }
+
+        embed = discord.Embed(
+            title=f"📊 Statystyki połączeń: {TARGET_USER_NAME}",
+            color=discord.Color.green()
+        )
+
+        max_value = max(count for _, count in last_7_days)
+        bar_max_width = 20  # maksymalna długość paska w znakach
+
+        for day, count in last_7_days:
+            date_obj = datetime.strptime(day, "%Y-%m-%d")
+            weekday_en = date_obj.strftime("%A")
+            month_en = date_obj.strftime("%B")
+            weekday_pl = dni_tygodnia.get(weekday_en, weekday_en)
+            month_pl = miesiace.get(month_en, month_en)
+            day_str = f"{date_obj.day} {month_pl} ({weekday_pl})"
+
+            # Tworzenie paska wykresu ASCII
+            bar_length = int((count / max_value) * bar_max_width) if max_value > 0 else 0
+            bar = "█" * bar_length + "░" * (bar_max_width - bar_length)
+
+            embed.add_field(
+                name=day_str,
+                value=f"-> {count} {polaczenie_label(count)}\n{bar}",
+                inline=False
+            )
+
+        embed.add_field(
+            name="📈 Najwięcej połączeń w ostatnim tygodniu",
+            value=f"{max_day[0]} – {max_day[1]} razy",
+            inline=False,
+        )
+        embed.add_field(
+            name="🏆 Najaktywniejszy dzień w historii *(od 2025-03-13)*",
+            value=f"{history_max[0]} – {history_max[1]} razy",
+            inline=False,
+        )
+
+        # Pobierz obiekt użytkownika
+        guild = message.guild
+        target_member = discord.utils.get(guild.members, name=TARGET_USER_NAME)
+
+        if target_member and target_member.avatar:
+            embed.set_thumbnail(url=target_member.avatar.url)
+
+        await message.channel.send(embed=embed)
+
+    # Własny on_message wyłącza automatyczne przetwarzanie prefix commands.
+    # Musimy jawnie przekazać wiadomość do commands.Bot, m.in. dla !updatecs.
+    if message.content.startswith('!live'):
+        if message.author.id != 443406275716579348:
+            await message.channel.send("❌ Nie masz uprawnień do tej komendy.", delete_after=5)
+            return
+
+        status = await message.channel.send("Generuję FACEIT LIVE…")
+        try:
+            import asyncio
+            from faceit.live import build_faceit_live_image
+
+            buffer = await asyncio.to_thread(build_faceit_live_image)
+            file = discord.File(fp=buffer, filename="faceit_live.png")
+            await message.channel.send(file=file)
+            try:
+                await status.delete()
+            except Exception:
+                pass
+        except Exception as e:
+            try:
+                await status.edit(content=f"❌ Błąd podczas generowania live: {e}")
+            except Exception:
+                await message.channel.send(f"❌ Błąd podczas generowania live: {e}")
+
+    if message.content.startswith('!tygtest'):
+        if message.author.id != 443406275716579348:
+            await message.channel.send("❌ Nie masz uprawnień do tej komendy.", delete_after=5)
+            return
+
+        try:
+            from faceit.tygodniowka import generate_weekly_summary
+
+            embed = await generate_weekly_summary(client, guild=message.guild)
+            if embed:
+                try:
+                    await message.channel.send(file=discord.File('images/ranking/tygodniowka.png'), embed=embed)
+                except Exception:
+                    await message.channel.send(embed=embed)
+            else:
+                await message.channel.send("Brak zapisanych danych tygodniowych.", delete_after=10)
+        except Exception as e:
+            await message.channel.send(f"❌ Błąd podczas generowania tygodniówki: {e}")
+
+
+    # Własny on_message wyłącza automatyczne przetwarzanie prefix commands.
+    # Jawnie przekazujemy wiadomość do commands.Bot, m.in. dla !updatecs.
+    await client.process_commands(message)
+
+# Uruchomienie bota
+if __name__ == "__main__":
+    start_console_listener()
+    client.run(DISCORD_TOKEN)

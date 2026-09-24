@@ -1,0 +1,298 @@
+import discord
+from discord import app_commands
+from faceit.common import get_guild_emoji_text
+
+
+def register_faceit_command(tree, guild, faceit_nick_autocomplete):
+    @tree.command(
+        name="faceit",
+        description="Pokazuje statystyki gracza Faceit (ELO, LVL, ostatnie mecze)",
+        guild=guild,
+    )
+    @app_commands.describe(nick="Nick gracza Faceit")
+    @app_commands.autocomplete(nick=faceit_nick_autocomplete)
+    async def faceit(interaction: discord.Interaction, nick: str):
+        import faceit_utils as fu
+
+        await interaction.response.defer()
+
+        player_data = fu.get_faceit_player_data(nick)
+        if player_data is None:
+            await interaction.followup.send(f"Nie znaleziono gracza o nicku {nick} na Faceit.", ephemeral=True)
+            return
+
+        player_id = player_data["player_id"]
+        player_nickname = player_data["nickname"]
+        matches = fu.get_faceit_player_matches(player_id)
+        if matches is None:
+            await interaction.followup.send(
+                f"Nie udało się pobrać danych o meczach gracza {player_nickname}.", ephemeral=True
+            )
+            return
+
+        player_level = player_data.get("games", {}).get("cs2", {}).get("skill_level", "Brak danych")
+        player_elo = player_data.get("games", {}).get("cs2", {}).get("faceit_elo", "Brak danych")
+        avatar_url = player_data.get("avatar", "https://www.faceit.com/static/img/avatar.png")
+
+        player_level_emoji = str(player_level)
+        if str(player_level).isdigit() and interaction.guild:
+            emoji_name = f"faceit{player_level}"
+            emoji_text = get_guild_emoji_text(interaction.guild, emoji_name)
+            player_level_emoji = emoji_text if emoji_text else f":{emoji_name}:"
+
+        faceit_logo = get_guild_emoji_text(interaction.guild, "faceitlogo")
+        title_prefix = f"{faceit_logo} " if faceit_logo else ""
+
+        daily_elo_change = ""
+        daily_stats = fu.load_daily_stats()
+        current_date = fu.datetime.now().strftime("%Y-%m-%d")
+        if daily_stats.get("date") == current_date:
+            start_elo = daily_stats.get("stats", {}).get(player_nickname)
+            if start_elo is not None and isinstance(player_elo, int):
+                elo_diff = player_elo - start_elo
+                if elo_diff != 0:
+                    daily_elo_change = f" ({'+' if elo_diff > 0 else ''}{elo_diff})"
+
+        view = discord.ui.LayoutView(timeout=None)
+        view_children = [
+            discord.ui.Section(
+                discord.ui.TextDisplay(
+                    f"# {title_prefix}{player_nickname}\n"
+                    f"{player_level_emoji} | **ELO:** {player_elo}{daily_elo_change}"
+                ),
+                accessory=discord.ui.Thumbnail(avatar_url),
+            )
+        ]
+
+        total_kills, total_deaths, total_assists, total_hs, total_wins, total_adr = 0, 0, 0, 0, 0, 0
+        total_mvps = 0
+        total_clutch_wins, total_clutch_count = 0, 0
+        total_flash_success, total_flash_count = 0, 0
+        total_entry_wins, total_entry_count = 0, 0
+        total_utility_dmg = 0
+        match_count = len(matches)
+
+        table_rows = []
+        w_map = len("Mapa")
+        w_result = len("Wynik")
+        w_kd = len("KD")
+        w_kda = len("K/D/A")
+        w_hs = len("HS")
+        w_adr = len("ADR")
+
+        for match in matches:
+            map_name = match.get("stats", {}).get("Map", "Nieznana").replace("de_", "")
+            result = match.get("stats", {}).get("Result", "Brak danych")
+            result_display = "🟢" if result == "1" else "🔴" if result == "0" else "❓"
+            kills = int(match.get("stats", {}).get("Kills", 0))
+            deaths = int(match.get("stats", {}).get("Deaths", 0))
+            assists = int(match.get("stats", {}).get("Assists", 0))
+            hs = int(match.get("stats", {}).get("Headshots %", 0))
+            adr = float(match.get("stats", {}).get("ADR", 0))
+            mvps = int(match.get("stats", {}).get("MVPs", 0))
+
+            kd_ratio = kills / deaths if deaths > 0 else float(kills)
+            kda_ratio = f"{kills}/{deaths}/{assists}"
+
+            total_kills += kills
+            total_deaths += deaths
+            total_assists += assists
+            total_hs += hs
+            total_adr += adr
+            total_mvps += mvps
+            if result == "1":
+                total_wins += 1
+
+            # Get detailed match stats for clutch, flash, utility data
+            match_id = match.get("stats", {}).get("Match Id")
+            if match_id:
+                match_details = fu.get_faceit_match_details(match_id)
+                if match_details:
+                    for team_name, team_data in match_details.get("teams", {}).items():
+                        for player in team_data.get("players", []):
+                            if player.get("nickname") == player_nickname:
+                                clutch = player.get("clutch", {"count": 0, "wins": 0})
+                                flash = player.get("flash", {"count": 0, "successes": 0})
+                                entry = player.get("entry", {"count": 0, "wins": 0})
+                                utility_dmg = player.get("utility_dmg", 0)
+
+                                total_clutch_wins += clutch.get("wins", 0)
+                                total_clutch_count += clutch.get("count", 0)
+                                total_flash_success += flash.get("successes", 0)
+                                total_flash_count += flash.get("count", 0)
+                                total_entry_wins += entry.get("wins", 0)
+                                total_entry_count += entry.get("count", 0)
+                                total_utility_dmg += utility_dmg
+                                break
+
+            w_map = max(w_map, len(map_name))
+            w_result = max(w_result, len(result_display))
+            w_kd = max(w_kd, len(f"{kd_ratio:.2f}"))
+            w_kda = max(w_kda, len(kda_ratio))
+            w_hs = max(w_hs, len(f"{hs}%"))
+            w_adr = max(w_adr, len(f"{adr:.0f}"))
+
+            table_rows.append((map_name, result_display, kd_ratio, kda_ratio, hs, adr))
+
+        result_start = w_map + 1
+        kd_start = result_start + w_result + 1
+        kda_start = kd_start + w_kd + 2
+        hs_start = kda_start + w_kda + 2
+        adr_start = hs_start + w_hs + 2
+        total_width = adr_start + w_adr
+        header_result_start = result_start
+        header_kd_start = kd_start + 2
+        header_kda_start = kda_start + 1
+        header_hs_start = hs_start + 1
+        header_adr_start = adr_start + 2
+        header_total_width = max(total_width, header_adr_start + w_adr)
+
+        def build_table_line(cells):
+            line = [" "] * total_width
+            for start, width, text, align in cells:
+                if align == "left":
+                    cell_text = text.ljust(width)
+                elif align == "right":
+                    cell_text = text.rjust(width)
+                else:
+                    cell_text = text.center(width)
+
+                for index, char in enumerate(cell_text):
+                    position = start + index
+                    if position < total_width:
+                        line[position] = char
+
+            return "".join(line).rstrip() + "  "
+
+        def build_header_line(cells):
+            line = [" "] * header_total_width
+            for start, width, text, align in cells:
+                if align == "left":
+                    cell_text = text.ljust(width)
+                elif align == "right":
+                    cell_text = text.rjust(width)
+                else:
+                    cell_text = text.center(width)
+
+                for index, char in enumerate(cell_text):
+                    position = start + index
+                    if position < header_total_width:
+                        line[position] = char
+
+            return "".join(line).rstrip() + " "
+
+        match_summary = "`"
+        match_summary += build_header_line(
+            [
+                (0, w_map, "Mapa", "left"),
+                (header_result_start, w_result, "Wynik", "center"),
+                (header_kd_start, w_kd, "KD", "center"),
+                (header_kda_start, w_kda, "K/D/A", "center"),
+                (header_hs_start, w_hs, "HS", "center"),
+                (header_adr_start, w_adr, "ADR", "center"),
+            ]
+        ) + "\n"
+        #match_summary += "-" * header_total_width + "\n"
+
+        for map_name, result_display, kd_ratio, kda_ratio, hs, adr in table_rows:
+            match_summary += build_table_line(
+                [
+                    (0, w_map, map_name, "left"),
+                    (result_start, w_result, result_display, "center"),
+                    (kd_start, w_kd, f"{kd_ratio:.2f}", "center"),
+                    (kda_start, w_kda, kda_ratio, "center"),
+                    (hs_start, w_hs, f"{hs}%", "center"),
+                    (adr_start, w_adr, f"{adr:.0f}", "center"),
+                ]
+            ) + "\n"
+
+        match_summary += "`"
+
+        view_children.append(
+            discord.ui.TextDisplay(f"-# Ostatnie 5 meczów\n{match_summary}")
+        )
+
+        avg_kills = int(total_kills / match_count) if match_count else 0
+        avg_deaths = int(total_deaths / match_count) if match_count else 0
+        avg_hs = total_hs / match_count if match_count else 0
+        win_percentage = (total_wins / match_count) * 100 if match_count else 0
+        avg_kd = float(avg_kills / avg_deaths) if avg_deaths else 0
+        avg_adr = float(total_adr / match_count) if match_count else 0
+        avg_mvps = total_mvps / match_count if match_count else 0
+        
+        clutch_percentage = (total_clutch_wins / total_clutch_count * 100) if total_clutch_count > 0 else 0
+        flash_percentage = (total_flash_success / total_flash_count * 100) if total_flash_count > 0 else 0
+        entry_percentage = (total_entry_wins / total_entry_count * 100) if total_entry_count > 0 else 0
+        avg_utility = total_utility_dmg / match_count if match_count else 0
+        
+        avg_stats_lines = [
+            f"**K/D**: {avg_kd:.2f}  ·  **HS**: {avg_hs:.0f}%  ·  **ADR**: {avg_adr:.1f}",
+            f"**Winrate**: {win_percentage:.0f}%  ·  **MVP**: {avg_mvps:.2f}",
+        ]
+        entry_clutch_stats = []
+        if total_entry_count > 0:
+            entry_clutch_stats.append(f"**Entry**: {entry_percentage:.0f}% ({total_entry_count})")
+        if total_clutch_count > 0:
+            entry_clutch_stats.append(f"**Clutche**: {clutch_percentage:.0f}% ({total_clutch_count})")
+        if entry_clutch_stats:
+            avg_stats_lines.append("  ·  ".join(entry_clutch_stats))
+
+        flash_utility_stats = []
+        if total_flash_count > 0:
+            flash_utility_stats.append(f"**Flashe**: {flash_percentage:.0f}% ({total_flash_count})")
+        if match_count > 0:
+            flash_utility_stats.append(f"**Utility**: {avg_utility:.1f}")
+        if flash_utility_stats:
+            avg_stats_lines.append("  ·  ".join(flash_utility_stats))
+
+        view_children.append(discord.ui.Separator())
+        view_children.append(
+            discord.ui.TextDisplay("### 📊 Średnie statystyki\n" + "\n".join(avg_stats_lines))
+        )
+
+        matches20 = fu.get_faceit_player_matches(player_id, limit=20)
+        if matches20:
+            total_kills20 = total_deaths20 = total_hs20 = total_wins20 = 0
+            total_mvps20 = 0
+            total_adr20 = 0.0
+            match_count20 = len(matches20)
+
+            for match in matches20:
+                result20 = match.get("stats", {}).get("Result", "Brak danych")
+                kills20 = int(match.get("stats", {}).get("Kills", 0))
+                deaths20 = int(match.get("stats", {}).get("Deaths", 0))
+                hs20 = int(match.get("stats", {}).get("Headshots %", 0))
+                adr20 = float(match.get("stats", {}).get("ADR", 0))
+                mvps20 = int(match.get("stats", {}).get("MVPs", 0))
+
+                total_kills20 += kills20
+                total_deaths20 += deaths20
+                total_hs20 += hs20
+                total_adr20 += adr20
+                total_mvps20 += mvps20
+                if result20 == "1":
+                    total_wins20 += 1
+
+            avg_kills20 = int(total_kills20 / match_count20) if match_count20 else 0
+            avg_deaths20 = int(total_deaths20 / match_count20) if match_count20 else 0
+            avg_hs20 = total_hs20 / match_count20 if match_count20 else 0
+            avg_kd20 = float(avg_kills20 / avg_deaths20) if avg_deaths20 else 0
+            avg_adr20 = float(total_adr20 / match_count20) if match_count20 else 0
+            avg_mvps20 = total_mvps20 / match_count20 if match_count20 else 0
+            win_percentage20 = (total_wins20 / match_count20) * 100 if match_count20 else 0
+
+            view_children.append(discord.ui.Separator())
+            view_children.append(
+                discord.ui.TextDisplay(
+                    f"### Ostatnie 20 gier\n"
+                    f"**K/D**: {avg_kd20:.2f}  ·  **HS**: {avg_hs20:.0f}%  ·  **ADR**: {avg_adr20:.1f}\n"
+                    f"**Winrate**: {win_percentage20:.0f}%  ·  **MVP**: {avg_mvps20:.2f}"
+                )
+            )
+            view_children.append(discord.ui.Separator())
+
+        view_children.append(
+            discord.ui.TextDisplay(f"[🔗 Profil](https://faceit.com/pl/players/{player_nickname})")
+        )
+        view.add_item(discord.ui.Container(*view_children, accent_color=discord.Color.orange()))
+        await interaction.followup.send(view=view)
