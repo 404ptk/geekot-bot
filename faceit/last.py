@@ -167,7 +167,7 @@ async def get_last_match_stats(nickname, guild=None):
             desc += f" | {score_display}\n"
     faceit_logo = get_guild_emoji_text(guild, "faceitlogo")
     title_prefix = f"{faceit_logo} " if faceit_logo else ""
-    header_text = f"# {title_prefix} Ostatni mecz - {player_profile_link}\n{desc}"
+    header_text = f"# {title_prefix} Ostatni mecz {player_profile_link}\n{desc}"
     if team_rating_str:
         mmr_subtext = "\n".join(
             f"-# {line}" for line in team_rating_str.splitlines() if line.strip()
