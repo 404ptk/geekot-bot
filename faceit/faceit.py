@@ -256,9 +256,13 @@ def register_faceit_command(tree, guild, faceit_nick_autocomplete):
             total_mvps20 = 0
             total_adr20 = 0.0
             match_count20 = len(matches20)
+            recent_result_emojis = []
 
             for match in matches20:
                 result20 = match.get("stats", {}).get("Result", "Brak danych")
+                recent_result_emojis.append(
+                    "🟢" if result20 == "1" else "🔴" if result20 == "0" else "❓"
+                )
                 kills20 = int(match.get("stats", {}).get("Kills", 0))
                 deaths20 = int(match.get("stats", {}).get("Deaths", 0))
                 hs20 = int(match.get("stats", {}).get("Headshots %", 0))
@@ -280,13 +284,18 @@ def register_faceit_command(tree, guild, faceit_nick_autocomplete):
             avg_adr20 = float(total_adr20 / match_count20) if match_count20 else 0
             avg_mvps20 = total_mvps20 / match_count20 if match_count20 else 0
             win_percentage20 = (total_wins20 / match_count20) * 100 if match_count20 else 0
+            recent_results_text = "\n".join(
+                "".join(recent_result_emojis[index:index + 10])
+                for index in range(0, len(recent_result_emojis), 10)
+            )
 
             view_children.append(discord.ui.Separator())
             view_children.append(
                 discord.ui.TextDisplay(
                     f"### Ostatnie 20 gier\n"
                     f"**K/D**: {avg_kd20:.2f}  ·  **HS**: {avg_hs20:.0f}%  ·  **ADR**: {avg_adr20:.1f}\n"
-                    f"**Winrate**: {win_percentage20:.0f}%  ·  **MVP**: {avg_mvps20:.2f}"
+                    f"**Winrate**: {win_percentage20:.0f}%  ·  **MVP**: {avg_mvps20:.2f}\n"
+                    f"{recent_results_text}"
                 )
             )
             view_children.append(discord.ui.Separator())
