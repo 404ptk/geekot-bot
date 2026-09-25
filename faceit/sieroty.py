@@ -273,10 +273,10 @@ def register_sieroty_commands(tree, guild, faceit_nick_autocomplete):
             lowest_kd_str = "Brak danych"
 
         summary = (
-            f"🤡 **Stały klient:** {freq_str}\n"
-            f"📉 **Najniższy ADR:** {lowest_adr_str}\n"
-            f"📉 **Najniższe K/D:** {lowest_kd_str}\n"
-            f"🧱 **Ostatnia ścianka:** {last_sierota.get('nick', 'Nieznany')} - {last_sierota.get('date', 'brak daty')}"
+            f"-# 🤡 **Stały klient:** {freq_str}\n"
+            f"-# 📉 **Najniższy ADR:** {lowest_adr_str}\n"
+            f"-# 📉 **Najniższe K/D:** {lowest_kd_str}\n"
+            f"-# 🧱 **Ostatnia ścianka:** {last_sierota.get('nick', 'Nieznany')} - {last_sierota.get('date', 'brak daty')}"
         )
         views = build_sieroty_list_views(player_texts, summary, include_image=sciana_wstydu_image is not None)
 
