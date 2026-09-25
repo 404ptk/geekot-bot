@@ -203,6 +203,13 @@ def register_sieroty_commands(tree, guild, faceit_nick_autocomplete):
         if os.path.exists(SIEROTY_WSTYDU_IMAGE_FILE):
             sciana_wstydu_image = discord.File(SIEROTY_WSTYDU_IMAGE_FILE, filename="sciana_wstydu.png")
 
+        adr_width = max(len(str(entry.get("adr"))) for entry in sieroty_data)
+        kda_width = max(
+            len(str(entry.get("kda", entry.get("kd", "N/A"))))
+            for entry in sieroty_data
+        )
+        kd_width = max(len(str(get_sieroty_kd_value(entry))) for entry in sieroty_data)
+
         player_texts = []
         for index, entry in enumerate(sieroty_data):
             if index == 0:
@@ -240,7 +247,7 @@ def register_sieroty_commands(tree, guild, faceit_nick_autocomplete):
             faceit_link = f"https://www.faceit.com/en/players/{quote(player_nick, safe='')}"
             player_texts.append(
                 f"{rank_prefix} [**{player_nick}**]({faceit_link}) ({entry['date']}){position_change}\n"
-                f"`ADR: {adr_val} | K/D/A: {kda_val} | K/D: {kd_val}` · {lobby_text}"
+                f"`ADR: {adr_val:>{adr_width}} | K/D/A: {kda_val:<{kda_width}} | K/D: {kd_val:>{kd_width}}` · {lobby_text}"
             )
 
         nicks = [entry["nick"] for entry in sieroty_data]
