@@ -71,6 +71,7 @@ txt/server_stats.json
 txt/steam_history.json
 txt/*_state.json
 txt/*_cache.json
+txt/football_data_api.txt
 debug_match_*.json
 _faceit_api_probe/*
 pomysly.md

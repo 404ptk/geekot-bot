@@ -3,9 +3,15 @@ import discord
 from discord import app_commands, ui
 import requests
 from datetime import datetime, timedelta
+from pathlib import Path
 
 GUILD_ID = 551503797067710504
-API_KEY = "633cd6ec62e44a65a01979ad90e558ba"  # Twój klucz API z football-data.org
+API_KEY_FILE = Path("txt/football_data_api.txt")
+try:
+    API_KEY = API_KEY_FILE.read_text(encoding="utf-8").strip() or None
+except OSError:
+    API_KEY = None
+    print(f"[Football] Missing API key file: {API_KEY_FILE}")
 
 LEAGUE_IDS = {
     "premier_league": "PL",  # Premier League
