@@ -181,8 +181,7 @@ def register_faceit_command(tree, guild, faceit_nick_autocomplete):
 
             return "".join(line).rstrip() + " "
 
-        match_summary = "`"
-        match_summary += build_header_line(
+        match_summary_lines = [build_header_line(
             [
                 (0, w_map, "Mapa", "left"),
                 (header_result_start, w_result, "Wynik", "center"),
@@ -191,11 +190,11 @@ def register_faceit_command(tree, guild, faceit_nick_autocomplete):
                 (header_hs_start, w_hs, "HS", "center"),
                 (header_adr_start, w_adr, "ADR", "center"),
             ]
-        ) + "\n"
+        ).rstrip()]
         #match_summary += "-" * header_total_width + "\n"
 
         for map_name, result_display, kd_ratio, kda_ratio, hs, adr in table_rows:
-            match_summary += build_table_line(
+            match_summary_lines.append(build_table_line(
                 [
                     (0, w_map, map_name, "left"),
                     (result_start, w_result, result_display, "center"),
@@ -204,9 +203,9 @@ def register_faceit_command(tree, guild, faceit_nick_autocomplete):
                     (hs_start, w_hs, f"{hs}%", "center"),
                     (adr_start, w_adr, f"{adr:.0f}", "center"),
                 ]
-            ) + "\n"
+            ).rstrip())
 
-        match_summary += "`"
+        match_summary = "\n".join(f"`{line}`" for line in match_summary_lines)
 
         view_children.append(
             discord.ui.TextDisplay(f"-# Ostatnie 5 meczów\n{match_summary}")
