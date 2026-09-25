@@ -150,9 +150,8 @@ def build_sieroty_list_views(entries, summary, include_image):
 
         if page_index == 0 and include_image:
             children.append(
-                discord.ui.Section(
-                    discord.ui.TextDisplay(header),
-                    accessory=discord.ui.Thumbnail("attachment://sciana_wstydu.png"),
+                discord.ui.MediaGallery(
+                    discord.MediaGalleryItem("attachment://sciana_wstydu.png")
                 )
             )
         elif page_index == 0:
@@ -161,7 +160,7 @@ def build_sieroty_list_views(entries, summary, include_image):
             children.append(discord.ui.TextDisplay("## Ściana Wstydu — ciąg dalszy"))
 
         if page_entries:
-            children.append(discord.ui.TextDisplay("\n\n".join(page_entries)))
+            children.append(discord.ui.TextDisplay("\n".join(page_entries)))
 
         if page_index == len(player_pages) - 1:
             children.append(discord.ui.Separator(spacing=discord.SeparatorSpacing.large))
