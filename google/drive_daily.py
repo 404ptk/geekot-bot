@@ -2,7 +2,7 @@ import asyncio
 import json
 import random
 import tempfile
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
@@ -527,7 +527,7 @@ def build_memory_view(post: Dict[str, Any], discord_filename: str) -> discord.ui
     """Build a compact Components V2 card for one Drive memory."""
     attachment_url = f"attachment://{discord_filename}"
     kind = "nagranie" if post.get("is_video") else "zdjęcie"
-    sent_at = datetime.now().strftime("%H:%M")
+    sent_at = (datetime.now() + timedelta(hours=2)).strftime("%H:%M")
     route = post.get("route_path") or "główny folder"
 
     view = discord.ui.LayoutView(timeout=None)
