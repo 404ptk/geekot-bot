@@ -1,6 +1,7 @@
 import discord
 from discord import app_commands
 import requests
+from urllib.parse import quote
 from faceit.common import get_country_flag_badge, get_faceit_level_badge, get_guild_emoji_text
 
 
@@ -18,6 +19,9 @@ async def get_last_match_stats(nickname, guild=None):
 
     player_id = player_data["player_id"]
     player_nickname = player_data["nickname"]
+    player_profile_link = (
+        f"[{player_nickname}](https://www.faceit.com/en/players/{quote(player_nickname, safe='')})"
+    )
     avatar_url = player_data.get("avatar", "https://www.faceit.com/static/img/avatar.png")
     player_elo = player_data.get("games", {}).get("cs2", {}).get("faceit_elo", 0)
 
@@ -95,16 +99,16 @@ async def get_last_match_stats(nickname, guild=None):
         if player_diff < 0:
             abs_diff = abs(player_diff)
             if abs_diff < 100:
-                team_rating_str += f"⬆️ {player_nickname} zagrał na MMR wyższym o **{abs_diff} elo**\n"
+                team_rating_str += f"⬆️ {player_profile_link} zagrał na MMR wyższym o **{abs_diff} elo**\n"
             else:
-                team_rating_str += f"⬆️ {player_nickname} zagrał na MMR wyższym **aż o {abs_diff} elo**\n"
+                team_rating_str += f"⬆️ {player_profile_link} zagrał na MMR wyższym **aż o {abs_diff} elo**\n"
         elif player_diff > 0:
             if player_diff < 100:
-                team_rating_str += f"⬇️ {player_nickname} zagrał na MMR niższym o **{player_diff} elo**\n"
+                team_rating_str += f"⬇️ {player_profile_link} zagrał na MMR niższym o **{player_diff} elo**\n"
             else:
-                team_rating_str += f"⬇️ {player_nickname} zagrał na MMR niższym **aż o {player_diff} elo**\n"
+                team_rating_str += f"⬇️ {player_profile_link} zagrał na MMR niższym **aż o {player_diff} elo**\n"
         else:
-            team_rating_str += f"➡️ {player_nickname} zagrał na średnim MMR drużyny\n"
+            team_rating_str += f"➡️ {player_profile_link} zagrał na średnim MMR drużyny\n"
 
     map_name = match_stats.get("map", "Nieznana").replace("de_", "")
     last_stats = last_match.get("stats", {})
@@ -163,7 +167,7 @@ async def get_last_match_stats(nickname, guild=None):
             desc += f" | {score_display}\n"
     faceit_logo = get_guild_emoji_text(guild, "faceitlogo")
     title_prefix = f"{faceit_logo} " if faceit_logo else ""
-    header_text = f"# {title_prefix} Ostatni mecz - {player_nickname}\n{desc}"
+    header_text = f"# {title_prefix} Ostatni mecz - {player_profile_link}\n{desc}"
     if team_rating_str:
         mmr_subtext = "\n".join(
             f"-# {line}" for line in team_rating_str.splitlines() if line.strip()
@@ -341,7 +345,7 @@ async def get_last_match_stats(nickname, guild=None):
         )
         view_children.append(discord.ui.Separator())
         view_children.append(
-            discord.ui.TextDisplay(f"### Statystyki - {player_nickname}\n{adv_stats}")
+            discord.ui.TextDisplay(f"### Statystyki meczu\n{adv_stats}")
         )
 
     match_link = f"https://www.faceit.com/en/cs2/room/{match_id}/scoreboard"
