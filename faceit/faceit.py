@@ -294,7 +294,7 @@ def register_faceit_command(tree, guild, faceit_nick_autocomplete):
                 discord.ui.TextDisplay(
                     f"### Ostatnie 20 gier\n"
                     f"**K/D**: {avg_kd20:.2f}  ·  **HS**: {avg_hs20:.0f}%  ·  **ADR**: {avg_adr20:.1f}\n"
-                    f"**Winrate**: {win_percentage20:.0f}%  ·  **MVP**: {avg_mvps20:.2f}\n"
+                    f"**Winrate**: {win_percentage20:.0f}%  ·  **MVP**: {avg_mvps20:.2f}\n\n"
                     f"{recent_results_text}"
                 )
             )
