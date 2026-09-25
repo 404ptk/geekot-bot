@@ -201,7 +201,7 @@ def register_faceit_command(tree, guild, faceit_nick_autocomplete):
                     (kd_start, w_kd, f"{kd_ratio:.2f}", "center"),
                     (kda_start, w_kda, kda_ratio, "center"),
                     (hs_start, w_hs, f"{hs}%", "center"),
-                    (adr_start, w_adr, f"{adr:.0f} ", "center"),
+                    (adr_start, w_adr, f"{adr:.0f}", "center"),
                 ]
             ).rstrip())
 
