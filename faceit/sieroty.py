@@ -209,8 +209,6 @@ def register_sieroty_commands(tree, guild, faceit_nick_autocomplete):
             for entry in sieroty_data
         )
         kd_width = max(len(str(get_sieroty_kd_value(entry))) for entry in sieroty_data)
-        date_width = max(len(str(entry.get("date", ""))) for entry in sieroty_data)
-        position_change_width = 2
 
         player_texts = []
         for index, entry in enumerate(sieroty_data):
@@ -228,18 +226,17 @@ def register_sieroty_commands(tree, guild, faceit_nick_autocomplete):
             if key in previous_map:
                 prev_pos = previous_map[key]
                 if prev_pos > index:
-                    position_change = "⬆️"
+                    position_change = " ⬆️"
                 elif prev_pos < index:
-                    position_change = "⬇️"
+                    position_change = " ⬇️"
                 else:
-                    position_change = "➖"
+                    position_change = " ➖"
             else:
-                position_change = "🆕"
+                position_change = " 🆕"
 
             kda_val = str(entry.get("kda", entry.get("kd", "N/A")))
             kd_val = get_sieroty_kd_value(entry)
             adr_val = str(entry.get("adr"))
-            date_val = str(entry.get("date", ""))
 
             lobby_link = get_sieroty_lobby_link(entry, previous_lookup)
             if lobby_link:
@@ -249,9 +246,8 @@ def register_sieroty_commands(tree, guild, faceit_nick_autocomplete):
             player_nick = entry["nick"]
             faceit_link = f"https://www.faceit.com/en/players/{quote(player_nick, safe='')}"
             player_texts.append(
-                f"{rank_prefix} [**{player_nick}**]({faceit_link})\n"
-                f"`{date_val:<{date_width}} | {position_change:<{position_change_width}} | "
-                f"ADR: {adr_val:<{adr_width}} | K/D/A: {kda_val:<{kda_width}} | K/D: {kd_val:>{kd_width}}` · {lobby_text}"
+                f"{rank_prefix} [**{player_nick}**]({faceit_link}) ({entry['date']}){position_change}\n"
+                f"`ADR: {adr_val:<{adr_width}} | K/D/A: {kda_val:<{kda_width}} | K/D: {kd_val:>{kd_width}}` · {lobby_text}"
             )
 
         nicks = [entry["nick"] for entry in sieroty_data]
