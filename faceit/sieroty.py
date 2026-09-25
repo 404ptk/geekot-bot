@@ -247,7 +247,7 @@ def register_sieroty_commands(tree, guild, faceit_nick_autocomplete):
             faceit_link = f"https://www.faceit.com/en/players/{quote(player_nick, safe='')}"
             player_texts.append(
                 f"{rank_prefix} [**{player_nick}**]({faceit_link}) ({entry['date']}){position_change}\n"
-                f"· `ADR: {adr_val:<{adr_width}} | K/D/A: {kda_val:<{kda_width}} | K/D: {kd_val:>{kd_width}}` · {lobby_text}"
+                f"» `ADR: {adr_val:<{adr_width}} | K/D/A: {kda_val:<{kda_width}} | K/D: {kd_val:>{kd_width}}` · {lobby_text}"
             )
 
         nicks = [entry["nick"] for entry in sieroty_data]
