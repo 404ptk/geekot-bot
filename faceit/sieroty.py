@@ -2,6 +2,7 @@ import json
 import os
 from collections import Counter
 from datetime import datetime
+from urllib.parse import quote
 
 import discord
 from discord import app_commands
@@ -236,8 +237,10 @@ def register_sieroty_commands(tree, guild, faceit_nick_autocomplete):
                 lobby_text = f"[🔗]({lobby_link})"
             else:
                 lobby_text = "🔗: brak"
+            player_nick = entry["nick"]
+            faceit_link = f"https://www.faceit.com/en/players/{quote(player_nick, safe='')}"
             player_texts.append(
-                f"{rank_prefix} **{entry['nick']}** ({entry['date']}){position_change}\n"
+                f"{rank_prefix} [**{player_nick}**]({faceit_link}) ({entry['date']}){position_change}\n"
                 f"`ADR: {adr_val} | K/D/A: {kda_val} | K/D: {kd_val}` · {lobby_text}"
             )
 
