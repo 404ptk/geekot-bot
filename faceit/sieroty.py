@@ -238,7 +238,7 @@ def register_sieroty_commands(tree, guild, faceit_nick_autocomplete):
                 lobby_text = "Lobby: brak"
             player_texts.append(
                 f"{rank_prefix} **{entry['nick']}** ({entry['date']}){position_change}\n"
-                f"`ADR: {adr_val} | K/D/A: {kda_val} | K/D: {kd_val}` · {lobby_text}"
+                f"`ADR: {adr_val} | K/D/A: {kda_val} | K/D: {kd_val}` · 🔗{lobby_text}"
             )
 
         nicks = [entry["nick"] for entry in sieroty_data]
