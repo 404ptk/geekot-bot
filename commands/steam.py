@@ -440,22 +440,24 @@ async def monitor_official_cs2_updates_loop():
         # Przy pierwszym uruchomieniu zapamiętaj aktualny wpis bez wysyłania archiwum.
         if last_gid is None:
             tracking["last_gid"] = latest_gid
+            tracking["pending_news"] = []
             save_cs2_official_tracking(tracking)
             logging.info("Initialized official CS2 news tracking")
             return
 
-        fresh = []
-        for item in reversed(news):
-            gid = str(item.get("gid", ""))
-            if gid == last_gid:
-                break
-            if gid:
-                fresh.append(item)
-        if fresh:
-            tracking["pending_news"] = tracking.get("pending_news", []) + fresh
+        pending = tracking.get("pending_news", [])
+        if latest_gid != last_gid:
             tracking["last_gid"] = latest_gid
+            # Steam returns newest first. Keep only the current latest entry;
+            # intermediate announcements are intentionally skipped.
+            tracking["pending_news"] = [news[0]]
             save_cs2_official_tracking(tracking)
-            logging.info(f"Queued {len(fresh)} official CS2 announcement(s)")
+            logging.info("Queued the latest official CS2 announcement")
+        elif pending:
+            # Also compact backlogs created by older versions of this loop.
+            tracking["pending_news"] = [news[0]]
+            save_cs2_official_tracking(tracking)
+            logging.info(f"Discarded stale official CS2 backlog ({len(pending)} queued item(s))")
     except Exception as e:
         logging.error(f"Error in official CS2 updates loop: {e}")
 
@@ -826,29 +828,16 @@ async def setup_steam_commands(client: discord.Client, tree: app_commands.Comman
     if not cs2_update_sender.is_running():
         cs2_update_sender.start()
 
-    async def send_official_cs2_items(items, channel):
-        """Send a batch as one embed and return the number of items sent."""
-        if not items or not channel:
-            return 0
+    async def send_official_cs2_item(item, channel):
+        """Send one official Steam announcement as one Discord message."""
+        if not item or not channel:
+            return False
         try:
-            # Components V2 allows up to 40 components. Find the largest
-            # prefix that fits instead of failing an entire queued update.
-            view = None
-            accepted_items = []
-            for size in range(min(len(items), 5), 0, -1):
-                try:
-                    accepted_items = items[:size]
-                    view = build_official_cs2_view(accepted_items)
-                    break
-                except ValueError:
-                    continue
-            if view is None:
-                return 0
-            await channel.send(view=view)
-            return len(accepted_items)
+            await channel.send(view=build_official_cs2_view([item]))
+            return True
         except Exception as e:
             logging.error(f"Error sending official CS2 announcement: {e}")
-            return 0
+            return False
 
     def official_cs2_item_key(item: dict) -> str:
         """Stable cross-instance key for an official Steam announcement."""
@@ -903,35 +892,59 @@ async def setup_steam_commands(client: discord.Client, tree: app_commands.Comman
             logging.error(f"Cannot find CS2 updates channel: {CS2_UPDATES_CHANNEL_ID}")
             return
 
-        # Several Steam entries can belong to the same release. Keep the
-        # Discord channel readable by publishing the batch as one view.
-        batch = pending[:5]
+        # Resolve the current newest item from Steam instead of draining an
+        # old backlog. This also repairs pending queues written by older code.
         try:
-            posted_keys = await find_posted_official_cs2_keys(channel, batch)
+            async with aiohttp.ClientSession() as session:
+                news = await fetch_official_cs2_news(session)
+        except Exception as e:
+            logging.error(f"Error refreshing latest official CS2 announcement: {e}")
+            return
+        if not news:
+            return
+
+        latest_item = news[0]
+        latest_gid = str(latest_item.get("gid", ""))
+        if not latest_gid:
+            logging.error("Latest official CS2 announcement has no gid")
+            return
+
+        tracking["last_gid"] = latest_gid
+        tracking["pending_news"] = [latest_item]
+        save_cs2_official_tracking(tracking)
+        latest_key = official_cs2_item_key(latest_item)
+
+        try:
+            posted_keys = await find_posted_official_cs2_keys(channel, [latest_item])
         except (discord.Forbidden, discord.HTTPException) as e:
             # Without history access, sending would risk duplicating a post
             # sent by another bot instance. Leave it queued for the next run.
             logging.error(f"Cannot verify existing CS2 announcements: {e}")
             return
 
-        new_items = [item for item in batch if official_cs2_item_key(item) not in posted_keys]
-        if not new_items:
-            tracking["pending_news"] = pending[len(batch):]
-            save_cs2_official_tracking(tracking)
-            logging.info("Skipped already posted official CS2 announcement(s)")
+        def retain_newer_pending_updates() -> None:
+            current = load_cs2_official_tracking()
+            latest_date = int(latest_item.get("date") or 0)
+            candidates = [
+                item
+                for item in current.get("pending_news", [])
+                if official_cs2_item_key(item) != latest_key
+                and int(item.get("date") or 0) >= latest_date
+            ]
+            if candidates:
+                newest = max(candidates, key=lambda item: int(item.get("date") or 0))
+                current["pending_news"] = [newest]
+            else:
+                current["pending_news"] = []
+            save_cs2_official_tracking(current)
+
+        if latest_key in posted_keys:
+            retain_newer_pending_updates()
+            logging.info("Skipped the latest official CS2 announcement because it was already posted")
             return
 
-        sent = await send_official_cs2_items(new_items, channel)
-        if sent:
-            consumed_keys = posted_keys | {
-                official_cs2_item_key(item) for item in new_items[:sent]
-            }
-            tracking["pending_news"] = [
-                item
-                for item in pending
-                if official_cs2_item_key(item) not in consumed_keys
-            ]
-            save_cs2_official_tracking(tracking)
+        if await send_official_cs2_item(latest_item, channel):
+            retain_newer_pending_updates()
         return
 
     @tasks.loop(seconds=30)
