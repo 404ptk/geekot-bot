@@ -164,7 +164,7 @@ def build_official_cs2_embed_legacy(items: list) -> discord.Embed:
 
     latest = items[-1]
     embed = discord.Embed(
-        title="📢 Counter-Strike 2 — oficjalne zmiany",
+        title="📢 CS2",
         description=_limit_discord_description("\n\n".join(sections)),
         color=discord.Color.from_rgb(210, 55, 45),
         url=latest.get("url") or "https://store.steampowered.com/news/app/730",
@@ -286,7 +286,7 @@ def build_official_cs2_embed(items: list) -> discord.Embed:
     latest = items[-1]
     source_url = latest.get("url") or "https://store.steampowered.com/news/app/730"
     embed = discord.Embed(
-        title="📢 Counter-Strike 2 — oficjalne zmiany",
+        title="📢 CS2",
         description=(
             "Najnowsza notka aktualizacji z oficjalnego kanału Steam.\n"
             f"[Otwórz pełną notkę na Steam]({source_url})"
@@ -349,9 +349,8 @@ def build_official_cs2_view(items: list) -> discord.ui.LayoutView:
     view = discord.ui.LayoutView(timeout=None)
     container = discord.ui.Container(accent_color=0xD2372D)
     header = discord.ui.Section(
-        discord.ui.TextDisplay("# 📢 Counter-Strike 2"),
+        discord.ui.TextDisplay("# 📢 CS2"),
         discord.ui.TextDisplay(
-            "## Oficjalne zmiany\n"
             f"-# [Otwórz pełną notkę na Steam]({source_url})"
         ),
         accessory=discord.ui.Thumbnail(
