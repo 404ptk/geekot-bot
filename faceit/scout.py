@@ -2,7 +2,6 @@
 
 import asyncio
 import re
-from datetime import datetime
 
 import discord
 import requests
@@ -21,7 +20,7 @@ def extract_match_id(value: str) -> str | None:
     return match.group(0) if match else None
 
 
-def fetch_match_data(match_id: str) -> dict:
+def _request_match_payload(match_id: str) -> dict:
     response = requests.get(
         MATCH_URL.format(match_id=match_id),
         headers={"User-Agent": "FaceitScoreScout/1.0", "Accept": "application/json"},
@@ -32,8 +31,10 @@ def fetch_match_data(match_id: str) -> dict:
     payload = body.get("payload")
     if not isinstance(payload, dict) or payload.get("id") != match_id:
         raise ValueError("Nie znaleziono meczu o podanym ID.")
+    return payload
 
-    teams = payload.get("teams") or {}
+
+def _extract_score(payload: dict) -> dict:
     factions = (payload.get("summaryResults") or {}).get("factions") or {}
     score1 = (factions.get("faction1") or {}).get("score")
     score2 = (factions.get("faction2") or {}).get("score")
@@ -47,12 +48,28 @@ def fetch_match_data(match_id: str) -> dict:
         raise ValueError("Mecz znaleziony, ale wynik nie jest jeszcze dostępny.")
 
     return {
-        "team1": (teams.get("faction1") or {}).get("name", "Drużyna 1"),
-        "team2": (teams.get("faction2") or {}).get("name", "Drużyna 2"),
         "score1": int(score1),
         "score2": int(score2),
         "status": str(payload.get("status", payload.get("state", "UNKNOWN"))).upper(),
     }
+
+
+def fetch_match_data(match_id: str) -> dict:
+    payload = _request_match_payload(match_id)
+    teams = payload.get("teams") or {}
+    data = {
+        "team1": (teams.get("faction1") or {}).get("name", "Drużyna 1"),
+        "team2": (teams.get("faction2") or {}).get("name", "Drużyna 2"),
+        "roster1": (teams.get("faction1") or {}).get("roster") or [],
+        "roster2": (teams.get("faction2") or {}).get("roster") or [],
+    }
+    data.update(_extract_score(payload))
+    return data
+
+
+def fetch_match_score(match_id: str) -> dict:
+    """Fetch only the fields that change; roster data stays cached from startup."""
+    return _extract_score(_request_match_payload(match_id))
 
 
 def match_is_finished(data: dict) -> bool:
@@ -73,10 +90,42 @@ def match_is_finished(data: dict) -> bool:
     return False
 
 
-def build_scout_view(data: dict, *, finished: bool = False) -> discord.ui.LayoutView:
+def format_roster(players: list[dict]) -> str:
+    if not players:
+        return "Brak danych o składzie."
+
+    rows = []
+    for player in players:
+        nickname = str(player.get("nickname") or "Nieznany")
+        # Keep the monospace table intact even if a nickname contains a backtick.
+        nickname = nickname.replace("`", "ˋ")
+        level = player.get("gameSkillLevel")
+        elo = player.get("elo")
+        rows.append((nickname, str(level) if level is not None else "—", str(elo) if elo is not None else "—"))
+
+    nickname_width = max(4, max(len(row[0]) for row in rows))
+    header = f"`{'Nick'.ljust(nickname_width)}  {'LVL':>3}  {'ELO':>5}`"
+    table_rows = [header]
+    for nickname, level, elo in rows:
+        table_rows.append(
+            f"`{nickname.ljust(nickname_width)}  {level.rjust(3)}  {elo.rjust(5)}`"
+        )
+    return "\n".join(table_rows)
+
+
+def build_scout_view(
+    data: dict,
+    *,
+    finished: bool = False,
+    stopped: bool = False,
+) -> discord.ui.LayoutView:
     team1, team2 = data["team1"], data["team2"]
     score = f"# {data['score1']}　:　{data['score2']}"
-    if finished:
+    if stopped:
+        heading = "## ⏸️ Śledzenie zatrzymane"
+        footer = "Tracker wyłączony ręcznie"
+        color = discord.Color.dark_grey()
+    elif finished:
         heading = "## 🏁 Mecz zakończony"
         footer = "Wynik końcowy"
         color = discord.Color.green()
@@ -92,6 +141,9 @@ def build_scout_view(data: dict, *, finished: bool = False) -> discord.ui.Layout
             discord.ui.Separator(spacing=discord.SeparatorSpacing.small),
             discord.ui.TextDisplay(f"**{team1}**　　**vs**　　**{team2}**"),
             discord.ui.TextDisplay(score),
+            discord.ui.Separator(spacing=discord.SeparatorSpacing.small),
+            discord.ui.TextDisplay(f"### 🟠 {team1}\n{format_roster(data.get('roster1') or [])}"),
+            discord.ui.TextDisplay(f"### 🔵 {team2}\n{format_roster(data.get('roster2') or [])}"),
             discord.ui.TextDisplay(f"-# {footer} · status: `{data['status']}`"),
             accent_color=color,
         )
@@ -99,14 +151,18 @@ def build_scout_view(data: dict, *, finished: bool = False) -> discord.ui.Layout
     return view
 
 
-async def track_match(channel: discord.abc.Messageable, match_id: str, initial_data: dict) -> None:
+async def track_match(
+    message: discord.WebhookMessage,
+    match_id: str,
+    initial_data: dict,
+) -> None:
     global _scout_reserved, _scout_task
     previous_score = (initial_data["score1"], initial_data["score2"])
     try:
         while True:
             await asyncio.sleep(POLL_INTERVAL_SECONDS)
             try:
-                updated = await asyncio.to_thread(fetch_match_data, match_id)
+                updated = await asyncio.to_thread(fetch_match_score, match_id)
             except (requests.RequestException, ValueError, requests.JSONDecodeError):
                 # Retry only at the next regular minute tick after transient errors.
                 continue
@@ -114,11 +170,16 @@ async def track_match(channel: discord.abc.Messageable, match_id: str, initial_d
             score = (updated["score1"], updated["score2"])
             finished = match_is_finished(updated)
             if score != previous_score or finished:
-                await channel.send(view=build_scout_view(updated, finished=finished))
+                view_data = {**initial_data, **updated}
+                await message.edit(view=build_scout_view(view_data, finished=finished))
                 previous_score = score
             if finished:
                 break
     except asyncio.CancelledError:
+        try:
+            await message.edit(view=build_scout_view(initial_data, stopped=True))
+        except discord.HTTPException:
+            pass
         raise
     except discord.HTTPException:
         # Stop if Discord no longer accepts tracking updates in this channel.
@@ -194,9 +255,11 @@ def register_scout_command(tree: app_commands.CommandTree, guild: discord.Object
                 return
 
             finished = match_is_finished(data)
-            await interaction.followup.send(view=build_scout_view(data, finished=finished))
+            message = await interaction.followup.send(
+                view=build_scout_view(data, finished=finished), wait=True
+            )
             if not finished:
-                _scout_task = asyncio.create_task(track_match(interaction.channel, match_id, data))
+                _scout_task = asyncio.create_task(track_match(message, match_id, data))
                 tracker_started = True
         finally:
             if not tracker_started:
