@@ -8,7 +8,7 @@ from itertools import zip_longest
 import discord
 import requests
 from discord import app_commands
-from faceit.common import get_country_flag_badge, get_faceit_level_badge
+from faceit.common import get_country_flag_badge, get_faceit_level_badge, get_guild_emoji_text
 
 
 POLL_INTERVAL_SECONDS = 60
@@ -131,6 +131,8 @@ def format_rosters(roster1: list[dict], roster2: list[dict], guild) -> tuple[str
             level = 0
         badge = get_faceit_level_badge(guild, level)
         country_flag = get_country_flag_badge(guild, player.get("country", ""))
+        if not country_flag:
+            country_flag = get_guild_emoji_text(guild, "pirate_flag") or "🏴‍☠️"
         elo = player.get("elo")
         badge_width = 2 if badge.startswith("<") or badge == "❓" else len(badge)
         if country_flag:
@@ -227,9 +229,9 @@ def build_scout_view(
 ) -> discord.ui.LayoutView:
     team1, team2 = data["team1"], data["team2"]
     if data.get("mmr1") is not None:
-        team1 = f"{team1} ({data['mmr1']})"
+        team1 = f"{team1} -# ({data['mmr1']})"
     if data.get("mmr2") is not None:
-        team2 = f"{team2} ({data['mmr2']})"
+        team2 = f"{team2} -# ({data['mmr2']})"
     score1, score2 = str(data["score1"]), str(data["score2"])
     roster_text, left_stack_extension, right_stack_extension = format_rosters(
         data.get("roster1") or [], data.get("roster2") or [], guild
