@@ -2,6 +2,7 @@
 
 import asyncio
 import re
+from collections import Counter
 from itertools import zip_longest
 
 import discord
@@ -92,10 +93,13 @@ def match_is_finished(data: dict) -> bool:
     return False
 
 
-def format_rosters(roster1: list[dict], roster2: list[dict], guild) -> str:
+def format_rosters(roster1: list[dict], roster2: list[dict], guild) -> tuple[str, int, int]:
     def format_player(player):
         if player is None:
-            return {"badge": "", "nickname": "—", "elo": "", "badge_width": 0}
+            return {
+                "badge": "", "nickname": "—", "elo": "", "badge_width": 0,
+                "party_id": None, "stack_marker": "",
+            }
 
         nickname = str(player.get("nickname") or "Nieznany").replace("`", "ˋ")
         try:
@@ -110,12 +114,32 @@ def format_rosters(roster1: list[dict], roster2: list[dict], guild) -> str:
             "nickname": nickname,
             "elo": str(elo) if elo is not None else "—",
             "badge_width": badge_width,
+            "party_id": player.get("partyId"),
         }
 
     cells1 = [format_player(player) for player in roster1]
     cells2 = [format_player(player) for player in roster2]
     if not cells1 and not cells2:
-        return "Brak danych o składach."
+        return "Brak danych o składach.", 0, 0
+
+    all_cells = cells1 + cells2
+    party_sizes = Counter(cell["party_id"] for cell in all_cells if cell["party_id"])
+    party_order = []
+    for cell in all_cells:
+        party_id = cell["party_id"]
+        if party_id and party_sizes[party_id] > 1 and party_id not in party_order:
+            party_order.append(party_id)
+
+    # A 5v5 match can have at most four separate stacks (four duos).
+    # The square carries a unique color; the following shape marks stack size.
+    stack_colors = ("🟥", "🟧", "🟨", "🟩", "🟦", "🟪", "🟫", "⬛", "⬜")
+    stack_shapes = {2: "", 3: "🔺", 4: "🔷", 5: "⚪"}
+    party_markers = {
+        party_id: stack_colors[index] + stack_shapes.get(party_sizes[party_id], "")
+        for index, party_id in enumerate(party_order)
+    }
+    for cell in all_cells:
+        cell["stack_marker"] = party_markers.get(cell["party_id"], "")
 
     nbsp = "\u00a0"
 
@@ -126,18 +150,29 @@ def format_rosters(roster1: list[dict], roster2: list[dict], guild) -> str:
         elo_width = max(len(cell["elo"]) for cell in cells)
         total_width = max(
             cell["badge_width"] + 1 + nickname_width + 1 + elo_width
+            + (1 + 2 * len(cell["stack_marker"]) if cell["stack_marker"] else 0)
             for cell in cells
         )
-        return nickname_width, elo_width, total_width
+        stack_extension = max(
+            (1 + 2 * len(cell["stack_marker"]) for cell in cells if cell["stack_marker"]),
+            default=0,
+        )
+        return nickname_width, elo_width, total_width, stack_extension
 
-    left_nick_width, left_elo_width, left_width = team_widths(cells1)
-    right_nick_width, right_elo_width, _ = team_widths(cells2)
+    left_nick_width, left_elo_width, left_width, left_stack_extension = team_widths(cells1)
+    right_nick_width, right_elo_width, _, right_stack_extension = team_widths(cells2)
 
     def render_cell(cell, nickname_width, elo_width, total_width=None):
         nickname = cell["nickname"] + nbsp * (nickname_width - len(cell["nickname"]))
         elo = cell["elo"]
         label = f"{nickname} {elo}{nbsp * (elo_width - len(elo))}"
-        cell_width = cell["badge_width"] + 1 + nickname_width + 1 + elo_width
+        marker = cell["stack_marker"]
+        if marker:
+            label += f" {marker}"
+        cell_width = (
+            cell["badge_width"] + 1 + nickname_width + 1 + elo_width
+            + (1 + 2 * len(marker) if marker else 0)
+        )
         if total_width is not None:
             label += nbsp * (total_width - cell_width)
         if cell["badge"]:
@@ -152,7 +187,7 @@ def format_rosters(roster1: list[dict], roster2: list[dict], guild) -> str:
         right_cell = render_cell(right, right_nick_width, right_elo_width)
         lines.append(f"{left_cell} | {right_cell}")
 
-    return "\n".join(lines)
+    return "\n".join(lines), left_stack_extension, right_stack_extension
 
 
 def build_scout_view(
@@ -164,9 +199,12 @@ def build_scout_view(
 ) -> discord.ui.LayoutView:
     team1, team2 = data["team1"], data["team2"]
     score1, score2 = str(data["score1"]), str(data["score2"])
+    roster_text, left_stack_extension, right_stack_extension = format_rosters(
+        data.get("roster1") or [], data.get("roster2") or [], guild
+    )
     # The label row has two full-width spaces on both sides of "vs".
-    gap_to_vs = 4
-    gap_from_vs = 4
+    gap_to_vs = 4 + left_stack_extension
+    gap_from_vs = 4 + right_stack_extension
     team1_center = len(team1) / 2
     vs_center = len(team1) + gap_to_vs + len("vs") / 2
     team2_center = len(team1) + gap_to_vs + len("vs") + gap_from_vs + len(team2) / 2
@@ -178,6 +216,10 @@ def build_scout_view(
     colon_gap = max(0, round(vs_center - 0.5 - base_score1_padding - len(score1)) + 6)
     score2_padding = max(0, round(team2_center - len(score2) / 2 - vs_center - 0.5) + 4)
     nbsp = "\u00a0"
+    label_line = (
+        f"**{team1}**　　{nbsp * left_stack_extension}**vs**"
+        f"　　{nbsp * right_stack_extension}**{team2}**"
+    )
     # The zero-width character prevents Discord's heading parser from trimming
     # the leading non-breaking spaces used to align each score under its team.
     scoreline = f"## \u200b{nbsp * score1_padding}{score1}{nbsp * colon_gap}:{nbsp * score2_padding}{score2}"
@@ -199,12 +241,10 @@ def build_scout_view(
         discord.ui.Container(
             discord.ui.TextDisplay(heading),
             discord.ui.Separator(spacing=discord.SeparatorSpacing.small),
-            discord.ui.TextDisplay(f"**{team1}**　　**vs**　　**{team2}**"),
+            discord.ui.TextDisplay(label_line),
             discord.ui.TextDisplay(scoreline),
             discord.ui.Separator(spacing=discord.SeparatorSpacing.small),
-            discord.ui.TextDisplay(
-                f"{format_rosters(data.get('roster1') or [], data.get('roster2') or [], guild)}"
-            ),
+            discord.ui.TextDisplay(roster_text),
             discord.ui.TextDisplay(f"-# {footer} · status: `{data['status']}`"),
             accent_color=color,
         )
