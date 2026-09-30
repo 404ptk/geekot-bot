@@ -311,6 +311,12 @@ async def setup_faceit_commands(client: discord.Client, tree: app_commands.Comma
         guild=guild
     )
     async def resetfaceitranking(interaction: discord.Interaction):
+        if interaction.user.id != 443406275716579348:
+            await interaction.response.send_message(
+                "❌ Nie masz uprawnień do tej komendy.", ephemeral=True
+            )
+            return
+
         reset_faceit_ranking()
         await interaction.response.send_message("✅ Ranking Faceit został zresetowany (plik faceit_ranking.txt usunięty).", ephemeral=True)
 
