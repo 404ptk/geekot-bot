@@ -170,9 +170,13 @@ def build_scout_view(
     team1_center = len(team1) / 2
     vs_center = len(team1) + gap_to_vs + len("vs") / 2
     team2_center = len(team1) + gap_to_vs + len("vs") + gap_from_vs + len(team2) / 2
-    score1_padding = max(0, round(team1_center - len(score1) / 2))
-    colon_gap = max(0, round(vs_center - 0.5 - score1_padding - len(score1)))
-    score2_padding = max(0, round(team2_center - len(score2) / 2 - vs_center - 0.5))
+    # Screenshot calibration: the team labels use a smaller proportional font,
+    # while the score is a larger heading. Add measured spacing corrections so
+    # the rendered centers line up despite the different glyph widths.
+    base_score1_padding = round(team1_center - len(score1) / 2)
+    score1_padding = max(0, base_score1_padding + 4)
+    colon_gap = max(0, round(vs_center - 0.5 - base_score1_padding - len(score1)) + 6)
+    score2_padding = max(0, round(team2_center - len(score2) / 2 - vs_center - 0.5) + 4)
     nbsp = "\u00a0"
     # The zero-width character prevents Discord's heading parser from trimming
     # the leading non-breaking spaces used to align each score under its team.
