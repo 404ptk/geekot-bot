@@ -93,12 +93,12 @@ def match_is_finished(data: dict) -> bool:
 
 
 def format_rosters(roster1: list[dict], roster2: list[dict], guild) -> str:
-    rows = []
+    formatted_rows = []
     for player1, player2 in zip_longest(roster1, roster2):
         cells = []
         for player in (player1, player2):
             if player is None:
-                cells.append("—")
+                cells.append({"badge": "", "label": "—", "width": 1})
                 continue
 
             nickname = str(player.get("nickname") or "Nieznany").replace("`", "ˋ")
@@ -109,10 +109,25 @@ def format_rosters(roster1: list[dict], roster2: list[dict], guild) -> str:
             badge = get_faceit_level_badge(guild, level)
             elo = player.get("elo")
             elo_text = str(elo) if elo is not None else "—"
-            cells.append(f"{badge} `{elo_text} | {nickname}`")
-        rows.append(f"{cells[0]}  │  {cells[1]}")
+            label = f"{nickname} {elo_text}"
+            # Discord custom emojis render at a consistent icon width, unlike
+            # their long markup strings; fallback labels use their text width.
+            badge_width = 2 if badge.startswith("<") or badge == "❓" else len(badge)
+            cells.append({"badge": badge, "label": label, "width": badge_width + 1 + len(label)})
+        formatted_rows.append(cells)
 
-    return "\n".join(rows) if rows else "Brak danych o składach."
+    if not formatted_rows:
+        return "Brak danych o składach."
+
+    left_width = max(row[0]["width"] for row in formatted_rows)
+    lines = []
+    for left, right in formatted_rows:
+        padding = "\u00a0" * (left_width - left["width"])
+        left_cell = f"{left['badge']} `{left['label']}{padding}`"
+        right_cell = f"{right['badge']} `{right['label']}`" if right["badge"] else right["label"]
+        lines.append(f"{left_cell} | {right_cell}")
+
+    return "\n".join(lines)
 
 
 def build_scout_view(
