@@ -109,8 +109,8 @@ def format_rosters(roster1: list[dict], roster2: list[dict], guild) -> str:
             badge = get_faceit_level_badge(guild, level)
             elo = player.get("elo")
             elo_text = str(elo) if elo is not None else "—"
-            cells.append(f"{badge} `{nickname}` **{elo_text}**")
-        rows.append(f"{cells[0]}　│　{cells[1]}")
+            cells.append(f"{badge} `{nickname}` `{elo_text}`")
+        rows.append(f"{cells[0]}  │  {cells[1]}")
 
     return "\n".join(rows) if rows else "Brak danych o składach."
 
@@ -123,7 +123,15 @@ def build_scout_view(
     stopped: bool = False,
 ) -> discord.ui.LayoutView:
     team1, team2 = data["team1"], data["team2"]
-    score = f"# {data['score1']}　:　{data['score2']}"
+    team1_label = team1.replace("`", "ˋ")
+    team2_label = team2.replace("`", "ˋ")
+    score_column_width = max(len(team1_label), len(str(data["score1"])))
+    scoreboard = (
+        "```text\n"
+        f"{team1_label.ljust(score_column_width)}  │  {team2_label}\n"
+        f"{str(data['score1']).ljust(score_column_width)}  │  {data['score2']}\n"
+        "```"
+    )
     if stopped:
         heading = "## ⏸️ Śledzenie zatrzymane"
         footer = "Tracker wyłączony ręcznie"
@@ -142,11 +150,9 @@ def build_scout_view(
         discord.ui.Container(
             discord.ui.TextDisplay(heading),
             discord.ui.Separator(spacing=discord.SeparatorSpacing.small),
-            discord.ui.TextDisplay(f"**{team1}**　　**vs**　　**{team2}**"),
-            discord.ui.TextDisplay(score),
+            discord.ui.TextDisplay(scoreboard),
             discord.ui.Separator(spacing=discord.SeparatorSpacing.small),
             discord.ui.TextDisplay(
-                f"### 🟠 {team1}　│　🔵 {team2}\n"
                 f"{format_rosters(data.get('roster1') or [], data.get('roster2') or [], guild)}"
             ),
             discord.ui.TextDisplay(f"-# {footer} · status: `{data['status']}`"),
