@@ -172,6 +172,11 @@ def format_rosters(roster1: list[dict], roster2: list[dict], guild) -> tuple[str
 
     nbsp = "\u00a0"
 
+    stack_slot_width = max(
+        (1 + 2 * len(cell["stack_marker"]) for cell in all_cells if cell["stack_marker"]),
+        default=0,
+    )
+
     def team_widths(cells):
         if not cells:
             cells = [format_player(None)]
@@ -179,17 +184,13 @@ def format_rosters(roster1: list[dict], roster2: list[dict], guild) -> tuple[str
         elo_width = max(len(cell["elo"]) for cell in cells)
         total_width = max(
             cell["badge_width"] + 1 + nickname_width + 1 + elo_width
-            + (1 + 2 * len(cell["stack_marker"]) if cell["stack_marker"] else 0)
+            + stack_slot_width
             for cell in cells
         )
-        stack_extension = max(
-            (1 + 2 * len(cell["stack_marker"]) for cell in cells if cell["stack_marker"]),
-            default=0,
-        )
-        return nickname_width, elo_width, total_width, stack_extension
+        return nickname_width, elo_width, total_width
 
-    left_nick_width, left_elo_width, left_width, left_stack_extension = team_widths(cells1)
-    right_nick_width, right_elo_width, right_width, right_stack_extension = team_widths(cells2)
+    left_nick_width, left_elo_width, left_width = team_widths(cells1)
+    right_nick_width, right_elo_width, right_width = team_widths(cells2)
 
     def render_cell(cell, nickname_width, elo_width, total_width=None):
         nickname = cell["nickname"] + nbsp * (nickname_width - len(cell["nickname"]))
@@ -198,9 +199,12 @@ def format_rosters(roster1: list[dict], roster2: list[dict], guild) -> tuple[str
         marker = cell["stack_marker"]
         if marker:
             label += f" {marker}"
+            label += nbsp * (stack_slot_width - (1 + 2 * len(marker)))
+        elif stack_slot_width:
+            label += nbsp * stack_slot_width
         cell_width = (
             cell["badge_width"] + 1 + nickname_width + 1 + elo_width
-            + (1 + 2 * len(marker) if marker else 0)
+            + stack_slot_width
         )
         if total_width is not None:
             label += nbsp * (total_width - cell_width)
@@ -217,7 +221,7 @@ def format_rosters(roster1: list[dict], roster2: list[dict], guild) -> tuple[str
         right_cell = render_cell(right, right_nick_width, right_elo_width, right_width)
         lines.append(f"{left_cell} | {right_cell}")
 
-    return "\n".join(lines), left_stack_extension, right_stack_extension
+    return "\n".join(lines), stack_slot_width, stack_slot_width
 
 
 def build_scout_view(
@@ -229,9 +233,9 @@ def build_scout_view(
 ) -> discord.ui.LayoutView:
     team1, team2 = data["team1"], data["team2"]
     if data.get("mmr1") is not None:
-        team1 = f"{team1} -# ({data['mmr1']})"
+        team1 = f"{team1} ({data['mmr1']})"
     if data.get("mmr2") is not None:
-        team2 = f"{team2} -# ({data['mmr2']})"
+        team2 = f"{team2} ({data['mmr2']})"
     score1, score2 = str(data["score1"]), str(data["score2"])
     roster_text, left_stack_extension, right_stack_extension = format_rosters(
         data.get("roster1") or [], data.get("roster2") or [], guild
