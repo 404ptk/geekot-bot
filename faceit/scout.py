@@ -93,38 +93,63 @@ def match_is_finished(data: dict) -> bool:
 
 
 def format_rosters(roster1: list[dict], roster2: list[dict], guild) -> str:
-    formatted_rows = []
-    for player1, player2 in zip_longest(roster1, roster2):
-        cells = []
-        for player in (player1, player2):
-            if player is None:
-                cells.append({"badge": "", "label": "—", "width": 1})
-                continue
+    def format_player(player):
+        if player is None:
+            return {"badge": "", "nickname": "—", "elo": "", "badge_width": 0}
 
-            nickname = str(player.get("nickname") or "Nieznany").replace("`", "ˋ")
-            try:
-                level = int(player.get("gameSkillLevel"))
-            except (TypeError, ValueError):
-                level = 0
-            badge = get_faceit_level_badge(guild, level)
-            elo = player.get("elo")
-            elo_text = str(elo) if elo is not None else "—"
-            label = f"{nickname} {elo_text}"
-            # Discord custom emojis render at a consistent icon width, unlike
-            # their long markup strings; fallback labels use their text width.
-            badge_width = 2 if badge.startswith("<") or badge == "❓" else len(badge)
-            cells.append({"badge": badge, "label": label, "width": badge_width + 1 + len(label)})
-        formatted_rows.append(cells)
+        nickname = str(player.get("nickname") or "Nieznany").replace("`", "ˋ")
+        try:
+            level = int(player.get("gameSkillLevel"))
+        except (TypeError, ValueError):
+            level = 0
+        badge = get_faceit_level_badge(guild, level)
+        elo = player.get("elo")
+        badge_width = 2 if badge.startswith("<") or badge == "❓" else len(badge)
+        return {
+            "badge": badge,
+            "nickname": nickname,
+            "elo": str(elo) if elo is not None else "—",
+            "badge_width": badge_width,
+        }
 
-    if not formatted_rows:
+    cells1 = [format_player(player) for player in roster1]
+    cells2 = [format_player(player) for player in roster2]
+    if not cells1 and not cells2:
         return "Brak danych o składach."
 
-    left_width = max(row[0]["width"] for row in formatted_rows)
+    nbsp = "\u00a0"
+
+    def team_widths(cells):
+        if not cells:
+            cells = [format_player(None)]
+        nickname_width = max(len(cell["nickname"]) for cell in cells)
+        elo_width = max(len(cell["elo"]) for cell in cells)
+        total_width = max(
+            cell["badge_width"] + 1 + nickname_width + 1 + elo_width
+            for cell in cells
+        )
+        return nickname_width, elo_width, total_width
+
+    left_nick_width, left_elo_width, left_width = team_widths(cells1)
+    right_nick_width, right_elo_width, _ = team_widths(cells2)
+
+    def render_cell(cell, nickname_width, elo_width, total_width=None):
+        nickname = cell["nickname"] + nbsp * (nickname_width - len(cell["nickname"]))
+        elo = cell["elo"]
+        label = f"{nickname} {elo}{nbsp * (elo_width - len(elo))}"
+        cell_width = cell["badge_width"] + 1 + nickname_width + 1 + elo_width
+        if total_width is not None:
+            label += nbsp * (total_width - cell_width)
+        if cell["badge"]:
+            return f"{cell['badge']} `{label}`"
+        return f"`{label}`"
+
     lines = []
-    for left, right in formatted_rows:
-        padding = "\u00a0" * (left_width - left["width"])
-        left_cell = f"{left['badge']} `{left['label']}{padding}`"
-        right_cell = f"{right['badge']} `{right['label']}`" if right["badge"] else right["label"]
+    for player1, player2 in zip_longest(cells1, cells2):
+        left = player1 or format_player(None)
+        right = player2 or format_player(None)
+        left_cell = render_cell(left, left_nick_width, left_elo_width, left_width)
+        right_cell = render_cell(right, right_nick_width, right_elo_width)
         lines.append(f"{left_cell} | {right_cell}")
 
     return "\n".join(lines)
