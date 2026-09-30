@@ -1,0 +1,178 @@
+"""Discord command for tracking one live FACEIT match at a time."""
+
+import asyncio
+import re
+from datetime import datetime
+
+import discord
+import requests
+from discord import app_commands
+
+
+POLL_INTERVAL_SECONDS = 60
+MATCH_ID_PATTERN = re.compile(r"1-[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}")
+MATCH_URL = "https://www.faceit.com/api/match/v4/match/{match_id}"
+_scout_reserved = False
+
+
+def extract_match_id(value: str) -> str | None:
+    match = MATCH_ID_PATTERN.search((value or "").strip())
+    return match.group(0) if match else None
+
+
+def fetch_match_data(match_id: str) -> dict:
+    response = requests.get(
+        MATCH_URL.format(match_id=match_id),
+        headers={"User-Agent": "FaceitScoreScout/1.0", "Accept": "application/json"},
+        timeout=15,
+    )
+    response.raise_for_status()
+    body = response.json()
+    payload = body.get("payload")
+    if not isinstance(payload, dict) or payload.get("id") != match_id:
+        raise ValueError("Nie znaleziono meczu o podanym ID.")
+
+    teams = payload.get("teams") or {}
+    factions = (payload.get("summaryResults") or {}).get("factions") or {}
+    score1 = (factions.get("faction1") or {}).get("score")
+    score2 = (factions.get("faction2") or {}).get("score")
+    if score1 is None or score2 is None:
+        results = payload.get("results") or []
+        if results:
+            result_factions = results[-1].get("factions") or {}
+            score1 = (result_factions.get("faction1") or {}).get("score")
+            score2 = (result_factions.get("faction2") or {}).get("score")
+    if score1 is None or score2 is None:
+        raise ValueError("Mecz znaleziony, ale wynik nie jest jeszcze dostępny.")
+
+    return {
+        "team1": (teams.get("faction1") or {}).get("name", "Drużyna 1"),
+        "team2": (teams.get("faction2") or {}).get("name", "Drużyna 2"),
+        "score1": int(score1),
+        "score2": int(score2),
+        "status": str(payload.get("status", payload.get("state", "UNKNOWN"))).upper(),
+    }
+
+
+def match_is_finished(data: dict) -> bool:
+    status = data["status"]
+    if status in {"FINISHED", "COMPLETED", "ENDED", "ABORTED", "CANCELLED", "CANCELED"}:
+        return True
+
+    score1, score2 = data["score1"], data["score2"]
+    high, low = max(score1, score2), min(score1, score2)
+    # Regulation: first to 13, unless the match reached 12:12.
+    if high == 13 and low < 12:
+        return True
+    # Overtime blocks start at 12:12, then 15:15, 18:18, ...;
+    # a team wins a block by reaching four rounds in that block.
+    if low >= 12:
+        overtime_start = 12 + ((low - 12) // 3) * 3
+        return high - overtime_start >= 4
+    return False
+
+
+def build_scout_view(data: dict, *, finished: bool = False) -> discord.ui.LayoutView:
+    team1, team2 = data["team1"], data["team2"]
+    score = f"# {data['score1']}　:　{data['score2']}"
+    if finished:
+        heading = "## 🏁 Mecz zakończony"
+        footer = "Wynik końcowy"
+        color = discord.Color.green()
+    else:
+        heading = "## 🔴 FACEIT • wynik na żywo"
+        footer = "Wynik sprawdzany co minutę • aktualizacja po zmianie wyniku"
+        color = discord.Color.orange()
+
+    view = discord.ui.LayoutView(timeout=None)
+    view.add_item(
+        discord.ui.Container(
+            discord.ui.TextDisplay(heading),
+            discord.ui.Separator(spacing=discord.SeparatorSpacing.small),
+            discord.ui.TextDisplay(f"**{team1}**　　**vs**　　**{team2}**"),
+            discord.ui.TextDisplay(score),
+            discord.ui.TextDisplay(f"-# {footer} · status: `{data['status']}`"),
+            accent_color=color,
+        )
+    )
+    return view
+
+
+async def track_match(channel: discord.abc.Messageable, match_id: str, initial_data: dict) -> None:
+    global _scout_reserved
+    previous_score = (initial_data["score1"], initial_data["score2"])
+    try:
+        while True:
+            await asyncio.sleep(POLL_INTERVAL_SECONDS)
+            try:
+                updated = await asyncio.to_thread(fetch_match_data, match_id)
+            except (requests.RequestException, ValueError, requests.JSONDecodeError):
+                # Retry only at the next regular minute tick after transient errors.
+                continue
+
+            score = (updated["score1"], updated["score2"])
+            finished = match_is_finished(updated)
+            if score != previous_score or finished:
+                await channel.send(view=build_scout_view(updated, finished=finished))
+                previous_score = score
+            if finished:
+                break
+    except asyncio.CancelledError:
+        raise
+    except discord.HTTPException:
+        # Stop if Discord no longer accepts tracking updates in this channel.
+        pass
+    finally:
+        _scout_reserved = False
+
+
+def register_scout_command(tree: app_commands.CommandTree, guild: discord.Object) -> None:
+    @tree.command(
+        name="scout",
+        description="Śledzi wynik meczu FACEIT i publikuje zmiany rund",
+        guild=guild,
+    )
+    @app_commands.describe(id_meczu="ID meczu FACEIT (np. 1-...)")
+    async def scout(interaction: discord.Interaction, id_meczu: str):
+        global _scout_reserved
+
+        if _scout_reserved:
+            await interaction.response.send_message(
+                "⏳ Inny mecz jest już śledzony. Na całym bocie może działać tylko jeden `/scout`.",
+                ephemeral=True,
+            )
+            return
+
+        match_id = extract_match_id(id_meczu)
+        if not match_id:
+            await interaction.response.send_message(
+                "❌ Nieprawidłowe ID meczu. Wklej ID w formacie `1-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`.",
+                ephemeral=True,
+            )
+            return
+
+        # Reserve before the first await so concurrent invocations cannot start
+        # a second poller while this one is checking the match.
+        _scout_reserved = True
+        tracker_started = False
+        try:
+            await interaction.response.defer()
+            try:
+                data = await asyncio.to_thread(fetch_match_data, match_id)
+            except requests.RequestException as exc:
+                await interaction.followup.send(
+                    f"❌ Nie udało się pobrać meczu z FACEIT: `{exc}`", ephemeral=True
+                )
+                return
+            except (ValueError, requests.JSONDecodeError) as exc:
+                await interaction.followup.send(f"❌ {exc}", ephemeral=True)
+                return
+
+            finished = match_is_finished(data)
+            await interaction.followup.send(view=build_scout_view(data, finished=finished))
+            if not finished:
+                asyncio.create_task(track_match(interaction.channel, match_id, data))
+                tracker_started = True
+        finally:
+            if not tracker_started:
+                _scout_reserved = False
