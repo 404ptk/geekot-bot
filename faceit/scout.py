@@ -123,15 +123,16 @@ def build_scout_view(
     stopped: bool = False,
 ) -> discord.ui.LayoutView:
     team1, team2 = data["team1"], data["team2"]
-    team1_label = team1.replace("`", "ˋ")
-    team2_label = team2.replace("`", "ˋ")
-    score_column_width = max(len(team1_label), len(str(data["score1"])))
-    scoreboard = (
-        "```text\n"
-        f"{team1_label.ljust(score_column_width)}  │  {team2_label}\n"
-        f"{str(data['score1']).ljust(score_column_width)}  │  {data['score2']}\n"
-        "```"
-    )
+    score1, score2 = str(data["score1"]), str(data["score2"])
+    # Approximate the centers of team1, "vs" and team2 in the label row,
+    # then pad the large score line to put each value below its team.
+    vs_center = len(team1) + 5
+    team2_center = len(team1) + 10 + len(team2) / 2
+    score1_padding = max(0, round((len(team1) - len(score1)) / 2))
+    colon_gap = max(0, round(vs_center - 0.5 - score1_padding - len(score1)))
+    score2_padding = max(0, round(team2_center - len(score2) / 2 - vs_center - 0.5))
+    nbsp = "\u00a0"
+    scoreline = f"## {nbsp * score1_padding}{score1}{nbsp * colon_gap}:{nbsp * score2_padding}{score2}"
     if stopped:
         heading = "## ⏸️ Śledzenie zatrzymane"
         footer = "Tracker wyłączony ręcznie"
@@ -150,7 +151,8 @@ def build_scout_view(
         discord.ui.Container(
             discord.ui.TextDisplay(heading),
             discord.ui.Separator(spacing=discord.SeparatorSpacing.small),
-            discord.ui.TextDisplay(scoreboard),
+            discord.ui.TextDisplay(f"**{team1}**　　**vs**　　**{team2}**"),
+            discord.ui.TextDisplay(scoreline),
             discord.ui.Separator(spacing=discord.SeparatorSpacing.small),
             discord.ui.TextDisplay(
                 f"{format_rosters(data.get('roster1') or [], data.get('roster2') or [], guild)}"
