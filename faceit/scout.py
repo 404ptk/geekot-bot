@@ -164,15 +164,19 @@ def build_scout_view(
 ) -> discord.ui.LayoutView:
     team1, team2 = data["team1"], data["team2"]
     score1, score2 = str(data["score1"]), str(data["score2"])
-    # Approximate the centers of team1, "vs" and team2 in the label row,
-    # then pad the large score line to put each value below its team.
-    vs_center = len(team1) + 5
-    team2_center = len(team1) + 10 + len(team2) / 2
-    score1_padding = max(0, round((len(team1) - len(score1)) / 2))
+    # The label row has two full-width spaces on both sides of "vs".
+    gap_to_vs = 4
+    gap_from_vs = 4
+    team1_center = len(team1) / 2
+    vs_center = len(team1) + gap_to_vs + len("vs") / 2
+    team2_center = len(team1) + gap_to_vs + len("vs") + gap_from_vs + len(team2) / 2
+    score1_padding = max(0, round(team1_center - len(score1) / 2))
     colon_gap = max(0, round(vs_center - 0.5 - score1_padding - len(score1)))
     score2_padding = max(0, round(team2_center - len(score2) / 2 - vs_center - 0.5))
     nbsp = "\u00a0"
-    scoreline = f"## {nbsp * score1_padding}{score1}{nbsp * colon_gap}:{nbsp * score2_padding}{score2}"
+    # The zero-width character prevents Discord's heading parser from trimming
+    # the leading non-breaking spaces used to align each score under its team.
+    scoreline = f"## \u200b{nbsp * score1_padding}{score1}{nbsp * colon_gap}:{nbsp * score2_padding}{score2}"
     if stopped:
         heading = "## ⏸️ Śledzenie zatrzymane"
         footer = "Tracker wyłączony ręcznie"
