@@ -109,7 +109,7 @@ def format_rosters(roster1: list[dict], roster2: list[dict], guild) -> str:
             badge = get_faceit_level_badge(guild, level)
             elo = player.get("elo")
             elo_text = str(elo) if elo is not None else "—"
-            cells.append(f"{badge} `{nickname}` `{elo_text}`")
+            cells.append(f"{badge} `{elo_text} | {nickname}`")
         rows.append(f"{cells[0]}  │  {cells[1]}")
 
     return "\n".join(rows) if rows else "Brak danych o składach."
@@ -143,7 +143,7 @@ def build_scout_view(
         color = discord.Color.green()
     else:
         heading = "## 🔴 FACEIT • wynik na żywo"
-        footer = "Wynik sprawdzany co minutę • aktualizacja po zmianie wyniku"
+        footer = "Wynik sprawdzany co minutę"
         color = discord.Color.orange()
 
     view = discord.ui.LayoutView(timeout=None)
