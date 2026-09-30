@@ -13,6 +13,7 @@ POLL_INTERVAL_SECONDS = 60
 MATCH_ID_PATTERN = re.compile(r"1-[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}")
 MATCH_URL = "https://www.faceit.com/api/match/v4/match/{match_id}"
 _scout_reserved = False
+_scout_task: asyncio.Task | None = None
 
 
 def extract_match_id(value: str) -> str | None:
@@ -99,7 +100,7 @@ def build_scout_view(data: dict, *, finished: bool = False) -> discord.ui.Layout
 
 
 async def track_match(channel: discord.abc.Messageable, match_id: str, initial_data: dict) -> None:
-    global _scout_reserved
+    global _scout_reserved, _scout_task
     previous_score = (initial_data["score1"], initial_data["score2"])
     try:
         while True:
@@ -124,6 +125,8 @@ async def track_match(channel: discord.abc.Messageable, match_id: str, initial_d
         pass
     finally:
         _scout_reserved = False
+        if _scout_task is asyncio.current_task():
+            _scout_task = None
 
 
 def register_scout_command(tree: app_commands.CommandTree, guild: discord.Object) -> None:
@@ -132,9 +135,31 @@ def register_scout_command(tree: app_commands.CommandTree, guild: discord.Object
         description="Śledzi wynik meczu FACEIT i publikuje zmiany rund",
         guild=guild,
     )
-    @app_commands.describe(id_meczu="ID meczu FACEIT (np. 1-...)")
+    @app_commands.describe(id_meczu="ID meczu FACEIT (np. 1-...) albo `clear`, aby zatrzymać śledzenie")
     async def scout(interaction: discord.Interaction, id_meczu: str):
-        global _scout_reserved
+        global _scout_reserved, _scout_task
+
+        if id_meczu.strip().lower() == "clear":
+            task = _scout_task
+            if task is None or task.done():
+                message = (
+                    "⏳ Tracker właśnie startuje. Spróbuj `/scout clear` ponownie za chwilę."
+                    if _scout_reserved
+                    else "ℹ️ Żaden mecz nie jest teraz śledzony."
+                )
+                await interaction.response.send_message(message, ephemeral=True)
+                return
+
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+            if _scout_task is task:
+                _scout_task = None
+                _scout_reserved = False
+            await interaction.response.send_message("🛑 Zatrzymano śledzenie meczu.", ephemeral=True)
+            return
 
         if _scout_reserved:
             await interaction.response.send_message(
@@ -171,7 +196,7 @@ def register_scout_command(tree: app_commands.CommandTree, guild: discord.Object
             finished = match_is_finished(data)
             await interaction.followup.send(view=build_scout_view(data, finished=finished))
             if not finished:
-                asyncio.create_task(track_match(interaction.channel, match_id, data))
+                _scout_task = asyncio.create_task(track_match(interaction.channel, match_id, data))
                 tracker_started = True
         finally:
             if not tracker_started:
