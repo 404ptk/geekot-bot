@@ -2,10 +2,12 @@
 
 import asyncio
 import re
+from itertools import zip_longest
 
 import discord
 import requests
 from discord import app_commands
+from faceit.common import get_faceit_level_badge
 
 
 POLL_INTERVAL_SECONDS = 60
@@ -90,32 +92,33 @@ def match_is_finished(data: dict) -> bool:
     return False
 
 
-def format_roster(players: list[dict]) -> str:
-    if not players:
-        return "Brak danych o składzie."
-
+def format_rosters(roster1: list[dict], roster2: list[dict], guild) -> str:
     rows = []
-    for player in players:
-        nickname = str(player.get("nickname") or "Nieznany")
-        # Keep the monospace table intact even if a nickname contains a backtick.
-        nickname = nickname.replace("`", "ˋ")
-        level = player.get("gameSkillLevel")
-        elo = player.get("elo")
-        rows.append((nickname, str(level) if level is not None else "—", str(elo) if elo is not None else "—"))
+    for player1, player2 in zip_longest(roster1, roster2):
+        cells = []
+        for player in (player1, player2):
+            if player is None:
+                cells.append("—")
+                continue
 
-    nickname_width = max(4, max(len(row[0]) for row in rows))
-    header = f"`{'Nick'.ljust(nickname_width)}  {'LVL':>3}  {'ELO':>5}`"
-    table_rows = [header]
-    for nickname, level, elo in rows:
-        table_rows.append(
-            f"`{nickname.ljust(nickname_width)}  {level.rjust(3)}  {elo.rjust(5)}`"
-        )
-    return "\n".join(table_rows)
+            nickname = str(player.get("nickname") or "Nieznany").replace("`", "ˋ")
+            try:
+                level = int(player.get("gameSkillLevel"))
+            except (TypeError, ValueError):
+                level = 0
+            badge = get_faceit_level_badge(guild, level)
+            elo = player.get("elo")
+            elo_text = str(elo) if elo is not None else "—"
+            cells.append(f"{badge} `{nickname}` **{elo_text}**")
+        rows.append(f"{cells[0]}　│　{cells[1]}")
+
+    return "\n".join(rows) if rows else "Brak danych o składach."
 
 
 def build_scout_view(
     data: dict,
     *,
+    guild=None,
     finished: bool = False,
     stopped: bool = False,
 ) -> discord.ui.LayoutView:
@@ -142,8 +145,10 @@ def build_scout_view(
             discord.ui.TextDisplay(f"**{team1}**　　**vs**　　**{team2}**"),
             discord.ui.TextDisplay(score),
             discord.ui.Separator(spacing=discord.SeparatorSpacing.small),
-            discord.ui.TextDisplay(f"### 🟠 {team1}\n{format_roster(data.get('roster1') or [])}"),
-            discord.ui.TextDisplay(f"### 🔵 {team2}\n{format_roster(data.get('roster2') or [])}"),
+            discord.ui.TextDisplay(
+                f"### 🟠 {team1}　│　🔵 {team2}\n"
+                f"{format_rosters(data.get('roster1') or [], data.get('roster2') or [], guild)}"
+            ),
             discord.ui.TextDisplay(f"-# {footer} · status: `{data['status']}`"),
             accent_color=color,
         )
@@ -155,6 +160,7 @@ async def track_match(
     message: discord.WebhookMessage,
     match_id: str,
     initial_data: dict,
+    guild,
 ) -> None:
     global _scout_reserved, _scout_task
     previous_score = (initial_data["score1"], initial_data["score2"])
@@ -171,13 +177,13 @@ async def track_match(
             finished = match_is_finished(updated)
             if score != previous_score or finished:
                 view_data = {**initial_data, **updated}
-                await message.edit(view=build_scout_view(view_data, finished=finished))
+                await message.edit(view=build_scout_view(view_data, guild=guild, finished=finished))
                 previous_score = score
             if finished:
                 break
     except asyncio.CancelledError:
         try:
-            await message.edit(view=build_scout_view(initial_data, stopped=True))
+            await message.edit(view=build_scout_view(initial_data, guild=guild, stopped=True))
         except discord.HTTPException:
             pass
         raise
@@ -256,10 +262,12 @@ def register_scout_command(tree: app_commands.CommandTree, guild: discord.Object
 
             finished = match_is_finished(data)
             message = await interaction.followup.send(
-                view=build_scout_view(data, finished=finished), wait=True
+                view=build_scout_view(data, guild=interaction.guild, finished=finished), wait=True
             )
             if not finished:
-                _scout_task = asyncio.create_task(track_match(message, match_id, data))
+                _scout_task = asyncio.create_task(
+                    track_match(message, match_id, data, interaction.guild)
+                )
                 tracker_started = True
         finally:
             if not tracker_started:
