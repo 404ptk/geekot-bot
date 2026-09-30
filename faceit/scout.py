@@ -8,7 +8,7 @@ from itertools import zip_longest
 import discord
 import requests
 from discord import app_commands
-from faceit.common import get_faceit_level_badge
+from faceit.common import get_country_flag_badge, get_faceit_level_badge
 
 
 POLL_INTERVAL_SECONDS = 60
@@ -60,11 +60,34 @@ def _extract_score(payload: dict) -> dict:
 def fetch_match_data(match_id: str) -> dict:
     payload = _request_match_payload(match_id)
     teams = payload.get("teams") or {}
+    faction1, faction2 = teams.get("faction1") or {}, teams.get("faction2") or {}
+    roster1 = faction1.get("roster") or []
+    roster2 = faction2.get("roster") or []
+
+    # Country is not included in the match roster, so enrich it from the same
+    # FACEIT player endpoint used by /last. Keep this optional: the match view
+    # still works if the profile lookup is unavailable.
+    try:
+        from faceit.faceit_utils import get_faceit_player_data
+
+        for player in roster1 + roster2:
+            nickname = player.get("nickname")
+            if nickname:
+                profile = get_faceit_player_data(nickname)
+                if profile:
+                    player["country"] = profile.get("country", "")
+    except Exception:
+        pass
+
     data = {
-        "team1": (teams.get("faction1") or {}).get("name", "Drużyna 1"),
-        "team2": (teams.get("faction2") or {}).get("name", "Drużyna 2"),
-        "roster1": (teams.get("faction1") or {}).get("roster") or [],
-        "roster2": (teams.get("faction2") or {}).get("roster") or [],
+        "team1": faction1.get("name", "Drużyna 1"),
+        "team2": faction2.get("name", "Drużyna 2"),
+        "mmr1": (faction1.get("stats") or {}).get("rating"),
+        "mmr2": (faction2.get("stats") or {}).get("rating"),
+        "roster1": roster1,
+        "roster2": roster2,
+        "map_name": ((payload.get("maps") or [{}])[0] or {}).get("name"),
+        "location": ((payload.get("locations") or [{}])[0] or {}).get("guid"),
     }
     data.update(_extract_score(payload))
     return data
@@ -98,7 +121,7 @@ def format_rosters(roster1: list[dict], roster2: list[dict], guild) -> tuple[str
         if player is None:
             return {
                 "badge": "", "nickname": "—", "elo": "", "badge_width": 0,
-                "party_id": None, "stack_marker": "",
+                "party_id": None, "stack_marker": "", "country_flag": "",
             }
 
         nickname = str(player.get("nickname") or "Nieznany").replace("`", "ˋ")
@@ -107,10 +130,14 @@ def format_rosters(roster1: list[dict], roster2: list[dict], guild) -> tuple[str
         except (TypeError, ValueError):
             level = 0
         badge = get_faceit_level_badge(guild, level)
+        country_flag = get_country_flag_badge(guild, player.get("country", ""))
         elo = player.get("elo")
         badge_width = 2 if badge.startswith("<") or badge == "❓" else len(badge)
+        if country_flag:
+            badge_width += 1 + (2 if country_flag.startswith("<") else len(country_flag))
         return {
             "badge": badge,
+            "country_flag": country_flag,
             "nickname": nickname,
             "elo": str(elo) if elo is not None else "—",
             "badge_width": badge_width,
@@ -160,7 +187,7 @@ def format_rosters(roster1: list[dict], roster2: list[dict], guild) -> tuple[str
         return nickname_width, elo_width, total_width, stack_extension
 
     left_nick_width, left_elo_width, left_width, left_stack_extension = team_widths(cells1)
-    right_nick_width, right_elo_width, _, right_stack_extension = team_widths(cells2)
+    right_nick_width, right_elo_width, right_width, right_stack_extension = team_widths(cells2)
 
     def render_cell(cell, nickname_width, elo_width, total_width=None):
         nickname = cell["nickname"] + nbsp * (nickname_width - len(cell["nickname"]))
@@ -176,7 +203,8 @@ def format_rosters(roster1: list[dict], roster2: list[dict], guild) -> tuple[str
         if total_width is not None:
             label += nbsp * (total_width - cell_width)
         if cell["badge"]:
-            return f"{cell['badge']} `{label}`"
+            flag = f" {cell['country_flag']}" if cell["country_flag"] else ""
+            return f"{cell['badge']}{flag} `{label}`"
         return f"`{label}`"
 
     lines = []
@@ -184,7 +212,7 @@ def format_rosters(roster1: list[dict], roster2: list[dict], guild) -> tuple[str
         left = player1 or format_player(None)
         right = player2 or format_player(None)
         left_cell = render_cell(left, left_nick_width, left_elo_width, left_width)
-        right_cell = render_cell(right, right_nick_width, right_elo_width)
+        right_cell = render_cell(right, right_nick_width, right_elo_width, right_width)
         lines.append(f"{left_cell} | {right_cell}")
 
     return "\n".join(lines), left_stack_extension, right_stack_extension
@@ -198,6 +226,10 @@ def build_scout_view(
     stopped: bool = False,
 ) -> discord.ui.LayoutView:
     team1, team2 = data["team1"], data["team2"]
+    if data.get("mmr1") is not None:
+        team1 = f"{team1} ({data['mmr1']})"
+    if data.get("mmr2") is not None:
+        team2 = f"{team2} ({data['mmr2']})"
     score1, score2 = str(data["score1"]), str(data["score2"])
     roster_text, left_stack_extension, right_stack_extension = format_rosters(
         data.get("roster1") or [], data.get("roster2") or [], guild
@@ -236,6 +268,13 @@ def build_scout_view(
         footer = "Wynik sprawdzany co minutę"
         color = discord.Color.orange()
 
+    match_details = []
+    if data.get("map_name"):
+        match_details.append(f"Mapa: {data['map_name']}")
+    if data.get("location"):
+        match_details.append(f"Serwer: {data['location']}")
+    details_line = f"-# {' · '.join(match_details)}\n" if match_details else ""
+
     view = discord.ui.LayoutView(timeout=None)
     view.add_item(
         discord.ui.Container(
@@ -245,7 +284,7 @@ def build_scout_view(
             discord.ui.TextDisplay(scoreline),
             discord.ui.Separator(spacing=discord.SeparatorSpacing.small),
             discord.ui.TextDisplay(roster_text),
-            discord.ui.TextDisplay(f"-# {footer} · status: `{data['status']}`"),
+            discord.ui.TextDisplay(details_line + f"-# {footer} · status: `{data['status']}`"),
             accent_color=color,
         )
     )
