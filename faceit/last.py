@@ -1,8 +1,90 @@
 import discord
 from discord import app_commands
 import requests
+import json
+import os
+import time
 from urllib.parse import quote
 from faceit.common import get_country_flag_badge, get_faceit_level_badge, get_guild_emoji_text
+
+
+RATING_SWING_CACHE_FILE = "txt/faceit_rating_swing_cache.json"
+RATING_SWING_ENDPOINT = (
+    "https://www.faceit.com/api/statistics/v1/cs2/matches/{match_id}/"
+    "match-rounds/1/scoreboard-summary?statsType=2"
+)
+RATING_SWING_MIN_INTERVAL = 10 * 60
+RATING_SWING_HOURLY_LIMIT = 6
+
+
+def _load_rating_swing_cache():
+    try:
+        with open(RATING_SWING_CACHE_FILE, "r", encoding="utf-8") as cache_file:
+            data = json.load(cache_file)
+            if isinstance(data, dict):
+                data.setdefault("matches", {})
+                data.setdefault("request_times", [])
+                return data
+    except (OSError, json.JSONDecodeError):
+        pass
+    return {"matches": {}, "request_times": []}
+
+
+def _save_rating_swing_cache(data):
+    try:
+        os.makedirs(os.path.dirname(RATING_SWING_CACHE_FILE), exist_ok=True)
+        temp_path = f"{RATING_SWING_CACHE_FILE}.tmp"
+        with open(temp_path, "w", encoding="utf-8") as cache_file:
+            json.dump(data, cache_file, ensure_ascii=False, indent=2)
+        os.replace(temp_path, RATING_SWING_CACHE_FILE)
+    except OSError as exc:
+        print(f"Nie udało się zapisać cache Faceit rating/swing: {exc}")
+
+
+def get_match_rating_swing(match_id, known_players):
+    """Fetch one scoreboard summary when rate limits allow; return our players' stats."""
+    cache = _load_rating_swing_cache()
+    match_key = str(match_id)
+    if match_key in cache["matches"]:
+        return cache["matches"][match_key]
+
+    now = time.time()
+    cache["request_times"] = [
+        stamp for stamp in cache["request_times"]
+        if isinstance(stamp, (int, float)) and now - stamp < 3600
+    ]
+    last_request = max(cache["request_times"], default=None)
+    if len(cache["request_times"]) >= RATING_SWING_HOURLY_LIMIT:
+        _save_rating_swing_cache(cache)
+        return {}
+    if last_request is not None and now - last_request < RATING_SWING_MIN_INTERVAL:
+        _save_rating_swing_cache(cache)
+        return {}
+
+    # Count failed requests too, so outages cannot cause repeated requests.
+    cache["request_times"].append(now)
+    _save_rating_swing_cache(cache)
+    try:
+        response = requests.get(RATING_SWING_ENDPOINT.format(match_id=match_key), timeout=8)
+        response.raise_for_status()
+        payload = response.json().get("payload", {}).get("cs2", {})
+        wanted = {nick.casefold() for nick in known_players.values()}
+        result = {}
+        for team in payload.get("teams", []):
+            for player in team.get("players", []):
+                nickname = player.get("nickname") or known_players.get(player.get("playerId"))
+                stats = player.get("stats") or {}
+                if nickname and nickname.casefold() in wanted:
+                    result[nickname.casefold()] = {
+                        "rating": stats.get("faceitRating"),
+                        "swing": stats.get("faceitRatingSwing"),
+                    }
+        cache["matches"][match_key] = result
+        _save_rating_swing_cache(cache)
+        return result
+    except (requests.RequestException, ValueError, TypeError, AttributeError) as exc:
+        print(f"Faceit rating/swing niedostępne dla meczu {match_key}: {exc}")
+        return {}
 
 
 async def get_last_match_stats(nickname, guild=None):
@@ -58,6 +140,7 @@ async def get_last_match_stats(nickname, guild=None):
     url = f"https://open.faceit.com/data/v4/matches/{match_id}"
     response = requests.get(url, headers={"Authorization": f"Bearer {fu.FACEIT_API_KEY}"})
     ratings = {}
+    known_players = {}
     if response.status_code == 200:
         match_general = response.json()
         for faction in ["faction1", "faction2"]:
@@ -67,6 +150,13 @@ async def get_last_match_stats(nickname, guild=None):
             f_rating = f_data.get("stats", {}).get("rating", 0)
             if f_id:
                 ratings[f_id] = {"name": f_name, "rating": f_rating}
+            for roster_player in f_data.get("roster", []):
+                nickname = roster_player.get("nickname")
+                player_id = roster_player.get("id")
+                if nickname and player_id and nickname.casefold() in {n.casefold() for n in fu.player_nicknames}:
+                    known_players[str(player_id)] = nickname
+
+    player_rating_swing = get_match_rating_swing(match_id, known_players) if known_players else {}
 
     player_team = None
     for team_name, team_data in match_stats["teams"].items():
@@ -231,6 +321,8 @@ async def get_last_match_stats(nickname, guild=None):
                     "country_flag": country_flag,
                     "is_target": player["nickname"] == player_nickname,
                     "is_premade": player["nickname"] in fu.player_nicknames,
+                    "rating": player_rating_swing.get(player["nickname"].casefold(), {}).get("rating"),
+                    "swing": player_rating_swing.get(player["nickname"].casefold(), {}).get("swing"),
                 }
             )
 
@@ -254,6 +346,8 @@ async def get_last_match_stats(nickname, guild=None):
     w_kd = len("K/D")
     w_hs = len("HS")
     w_adr = len("ADR")
+    w_rating = len("Rat.")
+    w_swing = len("Swing")
 
     for p in all_players:
         w_nick = max(w_nick, len(p["nickname"]))
@@ -263,6 +357,9 @@ async def get_last_match_stats(nickname, guild=None):
         w_kd = max(w_kd, len(p["kd_str"]))
         w_hs = max(w_hs, len(p["hs_str"]))
         w_adr = max(w_adr, len(p["adr_str"]))
+        if p["is_premade"]:
+            w_rating = max(w_rating, len(f"{p['rating']:.2f}") if isinstance(p["rating"], (int, float)) else 3)
+            w_swing = max(w_swing, len(f"{p['swing']:+.3f}") if isinstance(p["swing"], (int, float)) else 3)
 
     pad = 1
     w_nick += pad
@@ -272,11 +369,14 @@ async def get_last_match_stats(nickname, guild=None):
     w_kd += pad
     w_hs += pad
     w_adr += pad
+    w_rating += pad
+    w_swing += pad
 
     def format_team_stats(players):
         header = (
             f"`--     {'Nick'.ljust(w_nick)}{'K'.ljust(w_k)}{'D'.ljust(w_d)}{'A'.ljust(w_a)}"
-            f"{'K/D'.ljust(w_kd)}{'ADR'.ljust(w_adr)}{'HS'.ljust(w_hs)}`\n"
+            f"{'K/D'.ljust(w_kd)}{'ADR'.ljust(w_adr)}{'HS'.ljust(w_hs)}"
+            f"{'Rat.'.ljust(w_rating)}{'Swing'.ljust(w_swing)}`\n"
         )
         team_table = header
 
@@ -289,6 +389,9 @@ async def get_last_match_stats(nickname, guild=None):
             line += f"{p['kd_str'].ljust(w_kd)}"
             line += f"{p['adr_str'].ljust(w_adr)}"
             line += f"{p['hs_str'].ljust(w_hs)}`"
+            rating_display = f"{p['rating']:.2f}" if isinstance(p["rating"], (int, float)) else "---"
+            swing_display = f"{p['swing']:+.3f}" if isinstance(p["swing"], (int, float)) else "---"
+            line = line[:-1] + f"{rating_display.ljust(w_rating)}{swing_display.ljust(w_swing)}`"
             if p["is_target"]:
                 line += " 🎯"
             elif p["is_premade"]:
