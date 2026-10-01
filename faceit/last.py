@@ -152,7 +152,7 @@ async def get_last_match_stats(nickname, guild=None):
                 ratings[f_id] = {"name": f_name, "rating": f_rating}
             for roster_player in f_data.get("roster", []):
                 nickname = roster_player.get("nickname")
-                player_id = roster_player.get("id") or roster_player.get("player_id")
+                player_id = roster_player.get("id")
                 if nickname and player_id and nickname.casefold() in {n.casefold() for n in fu.player_nicknames}:
                     known_players[str(player_id)] = nickname
 
