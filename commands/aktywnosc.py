@@ -17,7 +17,6 @@ from commands.fun import get_member_in_voice, is_voice_countable, iter_affected_
 
 DATA_FILE = "txt/aktywnosc.json"
 WINDOW_DAYS = 30
-KEEP_DAYS = 45
 COMMIT_INTERVAL_MINUTES = 1
 
 try:
@@ -97,16 +96,8 @@ def load_activity() -> dict:
 
 def save_activity(data: dict) -> None:
     os.makedirs(os.path.dirname(DATA_FILE) or ".", exist_ok=True)
-    cutoff = (today_warsaw() - timedelta(days=KEEP_DAYS)).isoformat()
-    pruned = {}
-    for uid, days in data.items():
-        if not isinstance(days, dict):
-            continue
-        kept = {day: seconds for day, seconds in days.items() if isinstance(day, str) and day >= cutoff}
-        if kept:
-            pruned[uid] = kept
     with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(pruned, f, indent=4)
+        json.dump(data, f, indent=4)
 
 
 def add_seconds(data: dict, user_id: int, day: date, seconds: float) -> None:
@@ -255,20 +246,40 @@ def compute_stats(seconds_map: Dict[str, float], today: Optional[date] = None) -
     total_seconds = sum(seconds_map.get(day.isoformat(), 0) for day in days)
     active_count = sum(1 for flag in active_flags if flag)
 
+    # Streaks use all recorded history; the heatmap and totals remain limited
+    # to the visible 30-day window.
+    historical_days = []
+    for day in seconds_map:
+        if not isinstance(day, str) or day > today.isoformat():
+            continue
+        try:
+            historical_days.append(date.fromisoformat(day))
+        except ValueError:
+            continue
+    historical_days.sort()
+    if historical_days:
+        streak_days = [historical_days[0] + timedelta(days=i)
+                       for i in range((today - historical_days[0]).days + 1)]
+    else:
+        streak_days = []
+    historical_flags = [
+        is_day_active(seconds_map.get(day.isoformat(), 0)) for day in streak_days
+    ]
+
     longest = 0
     current_run = 0
-    for flag in active_flags:
+    for flag in historical_flags:
         if flag:
             current_run += 1
             longest = max(longest, current_run)
         else:
             current_run = 0
 
-    streak_idx = len(active_flags) - 1
-    if streak_idx >= 0 and not active_flags[streak_idx] and streak_idx > 0:
+    streak_idx = len(historical_flags) - 1
+    if streak_idx >= 0 and not historical_flags[streak_idx] and streak_idx > 0:
         streak_idx -= 1
     current_streak = 0
-    while streak_idx >= 0 and active_flags[streak_idx]:
+    while streak_idx >= 0 and historical_flags[streak_idx]:
         current_streak += 1
         streak_idx -= 1
 
