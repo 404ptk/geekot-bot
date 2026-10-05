@@ -215,7 +215,7 @@ def elo_to_faceit_level(elo):
     return 1
 
 
-def create_weekly_stats_embed(start_ts, end_ts, snapshot_elos, title, description, guild=None, *, components=False):
+def create_weekly_stats_embed(start_ts, end_ts, snapshot_elos, title, description, guild=None, *, components=False, player_avatars=None):
     import faceit_utils as fu
     from faceit.common import get_faceit_level_badge
 
@@ -262,6 +262,7 @@ def create_weekly_stats_embed(start_ts, end_ts, snapshot_elos, title, descriptio
         player_stats_list.append(
             {
                 "nick": nickname,
+                "avatar": player_data.get("avatar"),
                 "metrics": metrics,
                 "elo_str": elo_diff_str,
                 "elo_diff": elo_diff_val,
@@ -395,7 +396,11 @@ def create_weekly_stats_embed(start_ts, end_ts, snapshot_elos, title, descriptio
                 f"**PremQue** {premade_percent:.0f}%"
                 + (" · " + " · ".join(partner_parts) if partner_parts else "")
             )
-            embed.add_field(name=f"👤 {player['nick']}{level_change_str}", value=value, inline=False)
+            field_name = f"👤 {player['nick']}{level_change_str}"
+            embed.add_field(name=field_name, value=value, inline=False)
+            avatar = player.get("avatar")
+            if player_avatars is not None and isinstance(avatar, str) and avatar.startswith(("https://", "http://")):
+                player_avatars[field_name] = avatar
             continue
 
         computed_max = max((len(ln) for ln in all_lines_to_measure), default=0)
@@ -505,7 +510,7 @@ def create_weekly_stats_embed(start_ts, end_ts, snapshot_elos, title, descriptio
     return embed
 
 
-def build_weekly_summary_views(embed):
+def build_weekly_summary_views(embed, player_avatars=None):
     """Render the test report without dropping fields or exceeding V2 limits."""
     heading = f"## {embed.title}\n{embed.description}"
     blocks = []
@@ -514,10 +519,10 @@ def build_weekly_summary_views(embed):
         if not field.name or not field.value:
             continue
         if not field.name.startswith("👤") and not awards_started:
-            blocks.append("## 🏆 Wyróżnienia tygodnia")
+            blocks.append(("## 🏆 Wyróżnienia tygodnia", None))
             awards_started = True
-        blocks.append(f"### {field.name}\n{field.value}")
-    blocks.append(f"-# {embed.footer.text}")
+        blocks.append((f"### {field.name}\n{field.value}", (player_avatars or {}).get(field.name)))
+    blocks.append((f"-# {embed.footer.text}", None))
 
     views = []
     header = discord.ui.TextDisplay(heading)
@@ -528,21 +533,31 @@ def build_weekly_summary_views(embed):
         )
     children = [header]
     text_length = len(heading)
+    component_count = 4 if isinstance(header, discord.ui.Section) else 2
 
     def finish_page():
         view = discord.ui.LayoutView(timeout=None)
         view.add_item(discord.ui.Container(*children, accent_color=discord.Color.orange()))
         views.append(view)
 
-    for block in blocks:
+    for block, avatar in blocks:
+        block_components = 4 if avatar else 2
         # Leave room below Discord's 4000-character and 40-component limits.
-        if text_length + len(block) > 3800 or len(children) + 2 > 30:
+        if text_length + len(block) > 3800 or component_count + block_components > 38:
             finish_page()
             continuation = "## 📅 Podsumowanie Tygodnia Faceit · ciąg dalszy"
             children = [discord.ui.TextDisplay(continuation)]
             text_length = len(continuation)
-        children.extend([discord.ui.Separator(), discord.ui.TextDisplay(block)])
+            component_count = 2
+        item = discord.ui.TextDisplay(block)
+        if avatar:
+            item = discord.ui.Section(
+                item,
+                accessory=discord.ui.Thumbnail(avatar, description="Avatar gracza FACEIT"),
+            )
+        children.extend([discord.ui.Separator(), item])
         text_length += len(block)
+        component_count += block_components
     finish_page()
     return views
 
@@ -572,6 +587,7 @@ async def generate_weekly_summary(client, channel_id=None, guild=None, *, compon
     start_ts = start_dt.timestamp()
     end_ts = end_dt.timestamp()
 
+    player_avatars = {} if components else None
     embed = create_weekly_stats_embed(
         start_ts,
         end_ts,
@@ -580,8 +596,9 @@ async def generate_weekly_summary(client, channel_id=None, guild=None, *, compon
         description,
         guild=guild,
         components=components,
+        player_avatars=player_avatars,
     )
-    return build_weekly_summary_views(embed) if components else embed
+    return build_weekly_summary_views(embed, player_avatars) if components else embed
 
 
 async def run_weekly_summary_if_due(client, today=None):
