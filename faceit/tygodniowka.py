@@ -215,7 +215,7 @@ def elo_to_faceit_level(elo):
     return 1
 
 
-def create_weekly_stats_embed(start_ts, end_ts, snapshot_elos, title, description, guild=None):
+def create_weekly_stats_embed(start_ts, end_ts, snapshot_elos, title, description, guild=None, *, components=False):
     import faceit_utils as fu
     from faceit.common import get_faceit_level_badge
 
@@ -385,6 +385,19 @@ def create_weekly_stats_embed(start_ts, end_ts, snapshot_elos, title, descriptio
         line3 = f"Clutche: {metrics.get('clutch_wr', 0):.0f}% ({metrics.get('clutch_count', 0)}) | Entry: {metrics.get('entry_wr', 0):.0f}% ({metrics.get('entry_count', 0)})"
 
         all_lines_to_measure = [line1, line2, line3, premade_line]
+        if components:
+            value = (
+                f"**ELO** {player['elo_str']}\n"
+                f"**Gier** {metrics['count']} · **W** {metrics['wins']} · **L** {metrics['losses']}\n"
+                f"**Śr. K/D** {metrics['kd']:.2f} · **Śr. kille** {metrics['avg_kills']:.1f} · **Śr. ADR** {metrics['avg_adr']:.1f}\n"
+                f"**Clutche** {metrics.get('clutch_wr', 0):.0f}% ({metrics.get('clutch_count', 0)}) · "
+                f"**Entry** {metrics.get('entry_wr', 0):.0f}% ({metrics.get('entry_count', 0)})\n"
+                f"**PremQue** {premade_percent:.0f}%"
+                + (" · " + " · ".join(partner_parts) if partner_parts else "")
+            )
+            embed.add_field(name=f"👤 {player['nick']}{level_change_str}", value=value, inline=False)
+            continue
+
         computed_max = max((len(ln) for ln in all_lines_to_measure), default=0)
         MAX_LINE_LEN = 100
         global_max = min(computed_max, MAX_LINE_LEN)
@@ -492,7 +505,49 @@ def create_weekly_stats_embed(start_ts, end_ts, snapshot_elos, title, descriptio
     return embed
 
 
-async def generate_weekly_summary(client, channel_id=None, guild=None):
+def build_weekly_summary_views(embed):
+    """Render the test report without dropping fields or exceeding V2 limits."""
+    heading = f"## {embed.title}\n{embed.description}"
+    blocks = []
+    awards_started = False
+    for field in embed.fields:
+        if not field.name or not field.value:
+            continue
+        if not field.name.startswith("👤") and not awards_started:
+            blocks.append("## 🏆 Wyróżnienia tygodnia")
+            awards_started = True
+        blocks.append(f"### {field.name}\n{field.value}")
+    blocks.append(f"-# {embed.footer.text}")
+
+    views = []
+    header = discord.ui.TextDisplay(heading)
+    if os.path.isfile("images/ranking/tygodniowka.png"):
+        header = discord.ui.Section(
+            header,
+            accessory=discord.ui.Thumbnail("attachment://tygodniowka.png"),
+        )
+    children = [header]
+    text_length = len(heading)
+
+    def finish_page():
+        view = discord.ui.LayoutView(timeout=None)
+        view.add_item(discord.ui.Container(*children, accent_color=discord.Color.orange()))
+        views.append(view)
+
+    for block in blocks:
+        # Leave room below Discord's 4000-character and 40-component limits.
+        if text_length + len(block) > 3800 or len(children) + 2 > 30:
+            finish_page()
+            continuation = "## 📅 Podsumowanie Tygodnia Faceit · ciąg dalszy"
+            children = [discord.ui.TextDisplay(continuation)]
+            text_length = len(continuation)
+        children.extend([discord.ui.Separator(), discord.ui.TextDisplay(block)])
+        text_length += len(block)
+    finish_page()
+    return views
+
+
+async def generate_weekly_summary(client, channel_id=None, guild=None, *, components=False):
     """
     Generates the weekly summary embed.
     If run automatically (Monday), it compares with saved snapshot.
@@ -517,14 +572,16 @@ async def generate_weekly_summary(client, channel_id=None, guild=None):
     start_ts = start_dt.timestamp()
     end_ts = end_dt.timestamp()
 
-    return create_weekly_stats_embed(
+    embed = create_weekly_stats_embed(
         start_ts,
         end_ts,
         snapshot_elos,
         "📅 **Podsumowanie Tygodnia Faceit**",
         f"Statystyki za okres: {start_dt.strftime('%Y-%m-%d')} - {end_dt.strftime('%Y-%m-%d')}",
         guild=guild,
+        components=components,
     )
+    return build_weekly_summary_views(embed) if components else embed
 
 
 async def run_weekly_summary_if_due(client, today=None):

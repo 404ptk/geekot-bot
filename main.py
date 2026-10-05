@@ -473,12 +473,13 @@ async def on_message(message):
         try:
             from faceit.tygodniowka import generate_weekly_summary
 
-            embed = await generate_weekly_summary(client, guild=message.guild)
-            if embed:
-                try:
-                    await message.channel.send(file=discord.File('images/ranking/tygodniowka.png'), embed=embed)
-                except Exception:
-                    await message.channel.send(embed=embed)
+            views = await generate_weekly_summary(client, guild=message.guild, components=True)
+            if views:
+                for index, view in enumerate(views):
+                    files = []
+                    if index == 0 and os.path.isfile('images/ranking/tygodniowka.png'):
+                        files.append(discord.File('images/ranking/tygodniowka.png'))
+                    await message.channel.send(view=view, files=files, allowed_mentions=discord.AllowedMentions.none())
             else:
                 await message.channel.send("Brak zapisanych danych tygodniowych.", delete_after=10)
         except Exception as e:
