@@ -1,6 +1,7 @@
 import json
 import os
 from datetime import datetime, timedelta
+from urllib.parse import quote
 
 import discord
 
@@ -396,7 +397,9 @@ def create_weekly_stats_embed(start_ts, end_ts, snapshot_elos, title, descriptio
                 f"**PremQue** {premade_percent:.0f}%"
                 + (" · " + " · ".join(partner_parts) if partner_parts else "")
             )
-            field_name = f"👤 {player['nick']}{level_change_str}"
+            nickname = player['nick']
+            profile_url = f"https://www.faceit.com/en/players/{quote(nickname, safe='')}"
+            field_name = f"👤 [{discord.utils.escape_markdown(nickname)}]({profile_url}){level_change_str}"
             embed.add_field(name=field_name, value=value, inline=False)
             avatar = player.get("avatar")
             if player_avatars is not None and isinstance(avatar, str) and avatar.startswith(("https://", "http://")):
