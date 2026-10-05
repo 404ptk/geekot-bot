@@ -524,25 +524,12 @@ def build_weekly_summary_views(embed, player_avatars=None):
         if not field.name or not field.value:
             continue
         if not field.name.startswith("👤"):
-            # Keep decorative emoji outside the fixed-width table: clients
-            # render them at different widths even in a code block.
-            label = field.name.split(" ", 1)[-1]
-            awards.append((label, field.value))
+            awards.append((field.name, field.value))
             continue
         blocks.append((f"### {field.name}\n{field.value}", (player_avatars or {}).get(field.name)))
     if awards:
-        left_width = max(len(line) for award in awards[::2] for line in award)
-        rows = []
-        for index in range(0, len(awards), 2):
-            left = awards[index]
-            right = awards[index + 1] if index + 1 < len(awards) else ("", "")
-            rows.extend(
-                f"{left_line.ljust(left_width)}   {right_line}".rstrip()
-                for left_line, right_line in zip(left, right)
-            )
-            rows.append("")
-        table = "\n".join(rows).rstrip()
-        blocks.append((f"## 🏆 Wyróżnienia tygodnia\n```text\n{table}\n```", None))
+        award_text = "\n".join(f"**{name}** — {value}" for name, value in awards)
+        blocks.append((f"## 🏆 Wyróżnienia tygodnia\n{award_text}", None))
     blocks.append((f"-# {embed.footer.text}", None))
 
     views = []
