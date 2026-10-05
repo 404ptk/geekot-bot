@@ -547,11 +547,13 @@ def build_weekly_summary_views(embed):
     return views
 
 
-async def generate_weekly_summary(client, channel_id=None, guild=None, *, components=False):
+async def generate_weekly_summary(client, channel_id=None, guild=None, *, components=False, previous_weeks=0):
     """
-    Generates the weekly summary embed.
-    If run automatically (Monday), it compares with saved snapshot.
+    Generate the current calendar week plus up to two preceding weeks.
+    ELO comparison uses the saved snapshot, whose date is shown separately.
     """
+    if type(previous_weeks) is not int or not 0 <= previous_weeks <= 2:
+        raise ValueError("Liczba poprzednich tygodni musi wynosić 0, 1 lub 2.")
     weekly_stats = load_weekly_stats()
 
     if not weekly_stats:
@@ -560,15 +562,13 @@ async def generate_weekly_summary(client, channel_id=None, guild=None, *, compon
     last_snapshot_date_str = weekly_stats.get("date")
     snapshot_elos = weekly_stats.get("stats", {})
 
-    if last_snapshot_date_str:
-        try:
-            start_dt = datetime.strptime(last_snapshot_date_str, "%Y-%m-%d")
-        except ValueError:
-            start_dt = datetime.now() - timedelta(days=7)
-    else:
-        start_dt = datetime.now() - timedelta(days=7)
-
     end_dt = datetime.now()
+    start_dt = (end_dt - timedelta(days=end_dt.weekday(), weeks=previous_weeks)).replace(
+        hour=0, minute=0, second=0, microsecond=0,
+    )
+    description = f"Statystyki za okres: {start_dt.strftime('%Y-%m-%d')} - {end_dt.strftime('%Y-%m-%d')}"
+    if snapshot_elos:
+        description += f"\nELO porównane z zapisem z dnia {last_snapshot_date_str or 'nieznanego'}."
     start_ts = start_dt.timestamp()
     end_ts = end_dt.timestamp()
 
@@ -577,7 +577,7 @@ async def generate_weekly_summary(client, channel_id=None, guild=None, *, compon
         end_ts,
         snapshot_elos,
         "📅 **Podsumowanie Tygodnia Faceit**",
-        f"Statystyki za okres: {start_dt.strftime('%Y-%m-%d')} - {end_dt.strftime('%Y-%m-%d')}",
+        description,
         guild=guild,
         components=components,
     )

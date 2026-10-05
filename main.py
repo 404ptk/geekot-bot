@@ -465,15 +465,27 @@ async def on_message(message):
             except Exception:
                 await message.channel.send(f"❌ Błąd podczas generowania live: {e}")
 
-    if message.content.startswith('!tygtest'):
+    if message.content.split()[:1] == ['!tygtest']:
         if message.author.id != 443406275716579348:
             await message.channel.send("❌ Nie masz uprawnień do tej komendy.", delete_after=5)
             return
 
+        args = message.content.split()[1:]
+        if len(args) > 1 or (args and args[0] not in ('0', '1', '2')):
+            await message.channel.send(
+                "❌ Użycie: `!tygtest [0–2]`. Bez parametru: bieżący tydzień; "
+                "`1`: także poprzedni; `2`: także dwa poprzednie.",
+                delete_after=15,
+            )
+            return
+        previous_weeks = int(args[0]) if args else 0
+
         try:
             from faceit.tygodniowka import generate_weekly_summary
 
-            views = await generate_weekly_summary(client, guild=message.guild, components=True)
+            views = await generate_weekly_summary(
+                client, guild=message.guild, components=True, previous_weeks=previous_weeks,
+            )
             if views:
                 for index, view in enumerate(views):
                     files = []
