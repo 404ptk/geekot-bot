@@ -399,7 +399,9 @@ def create_weekly_stats_embed(start_ts, end_ts, snapshot_elos, title, descriptio
             )
             nickname = player['nick']
             profile_url = f"https://www.faceit.com/en/players/{quote(nickname, safe='')}"
-            field_name = f"👤 [{discord.utils.escape_markdown(nickname)}]({profile_url}){level_change_str}"
+            # A hyphen inside a link label cannot start a Markdown list.
+            display_nickname = discord.utils.escape_markdown(nickname).replace("\\-", "-")
+            field_name = f"👤 [{display_nickname}]({profile_url}){level_change_str}"
             embed.add_field(name=field_name, value=value, inline=False)
             avatar = player.get("avatar")
             if player_avatars is not None and isinstance(avatar, str) and avatar.startswith(("https://", "http://")):
