@@ -1,6 +1,9 @@
-import requests
 import os
-from faceit_utils import *
+
+import discord
+from discord import app_commands
+
+from faceit_utils import get_faceit_player_data, get_faceit_player_matches
 from startup_logger import record_startup_step
 
 # Plik do przechowywania danych
@@ -127,9 +130,6 @@ def resetmasny():
     masny_counter = {key: 0 for key in masny_counter}  # Resetujemy licznik
     save_masny_data()  # Zapisujemy zerowane statystyki do pliku
     load_masny_data()
-
-import discord
-from discord import app_commands
 
 GUILD_ID = 551503797067710504
 

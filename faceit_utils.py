@@ -4,7 +4,6 @@ import discord
 from discord import app_commands
 from discord.ext import tasks
 from datetime import datetime
-import asyncio
 import os
 from startup_logger import record_startup_step
 
@@ -221,10 +220,6 @@ def load_daily_stats():
             pass
     return {}
 
-def save_daily_stats(data):
-    with open(FACEIT_DAILY_STATS_FILE, "w") as f:
-        json.dump(data, f)
-
 # ----------------- SCHEDULED TASKS -----------------
 
 @tasks.loop(minutes=10)
@@ -337,31 +332,3 @@ async def setup_faceit_commands(client: discord.Client, tree: app_commands.Comma
         guild=guild,
         faceit_nick_autocomplete=faceit_nick_autocomplete,
     )
-
-MASNY_FILE = "txt/masny.txt"
-
-# Zdjęcia dla miejsc 1-5
-image_links = {
-    "1": "https://cdn.discordapp.com/attachments/809156611167748176/1330901097816129596/BE8227A4-FD7F-42E4-A48F-350CD124D92B.png?ex=678fa9bc&is=678e583c&hm=ac937a4d34a9375cc56fefdbb1d228733a3fdf0daaaa720e5a020ecd302a878e&",
-    "2": "https://cdn.discordapp.com/attachments/809156611167748176/1330905145772474428/61A0B076-BD51-400C-AF19-A7B1D626B1B1.png?ex=678fad81&is=678e5c01&hm=6f06532e17ca3e49d550adc2cf84ff19f80b91e5b7b8833c7c7dc54061f40882&",
-    "3": "https://cdn.discordapp.com/attachments/809156611167748176/1330911802049036340/2698389E-237A-4840-8A63-07F996640858.png?ex=678fb3b4&is=678e6234&hm=4870f7636f0053600f02e59e2c9332c5c0272d04e8cb25d25ad643c6f2947739&",
-    "4": "https://media.discordapp.net/attachments/778302928338550865/1300471813146415176/B4B5C4D4-8E00-43CE-927B-E9CC47FB2201.png?ex=678fb441&is=678e62c1&hm=661a9436fdf6bbe526df0afa62a28adf1ae8a4dbca4dab0f333d4a4c059d9a0d&=&format=webp&quality=lossless&width=359&height=601",
-    "5": "https://cdn.discordapp.com/attachments/809156611167748176/1330906894302318592/pobrane_1.gif?ex=678faf22&is=678e5da2&hm=908f4934957c128b1531edc28da1820b096fd8a1bd35358621e794336969884e&"
-}
-
-def load_masny_data():
-    # Zwraca słownik {"1": 0, "2": 0, ...}
-    if os.path.exists(MASNY_FILE):
-        try:
-            with open(MASNY_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                for i in range(1, 6):
-                    data.setdefault(str(i), 0)
-                return data
-        except Exception:
-            pass
-    return {str(i): 0 for i in range(1, 6)}
-
-def save_masny_data(data):
-    with open(MASNY_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f)
