@@ -2,7 +2,7 @@ import discord
 from discord import app_commands
 import json
 import os
-from typing import List, Optional
+from typing import List
 from startup_logger import record_startup_step
 
 GAMES_FILE = "txt/gry.json"

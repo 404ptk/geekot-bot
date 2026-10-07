@@ -1,6 +1,6 @@
 # table_str = "```" + "\n".join(lines) + "```"
 import discord
-from discord import app_commands, ui
+from discord import app_commands
 import requests
 from datetime import datetime, timedelta
 from pathlib import Path

@@ -2,7 +2,6 @@ import requests
 
 from jobs.filters import matches_city, is_fully_remote
 from jobs.providers.common import api_filters, merge_search
-from jobs.providers.sources import company_logo_url, source_label
 
 API_BASE_URL = "https://isitfair.pl/api/v1/offers/search"
 USER_AGENT = {"User-Agent": "geekot-bot/1.0 (+discord jobs watcher)"}

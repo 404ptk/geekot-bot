@@ -1,5 +1,4 @@
 import requests
-import json
 from startup_logger import record_startup_step
 
 
