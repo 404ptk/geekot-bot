@@ -52,9 +52,6 @@ def get_kick_access_token():
         print(f"[DEBUG] Wyjątek w trakcie uzyskiwania tokena: {e}")
         return None
 
-
-import requests
-
 def get_kick_stream_data(username):
     """
     Funkcja sprawdza, czy kanał o danym username (slug) jest aktualnie live.

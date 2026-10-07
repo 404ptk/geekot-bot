@@ -1,17 +1,11 @@
-import random
-from datetime import date
-
 import discord
-from discord import app_commands
-from discord.ext import commands
-import requests
 import os
 import re
-from discord.ext import commands, tasks
+from discord.ext import commands
 import json
 import asyncio
 import datetime
-from datetime import datetime, timedelta
+from datetime import datetime
 import sys
 import threading
 
@@ -195,7 +189,6 @@ async def on_ready():
         print("[Startup] on_ready was called again; startup steps were already completed.")
         return
 
-    # send_daily_stats(client)
     load_reaction_state(startup_label="Reaction state")
 
     async def run_startup_step(step_name, step_coroutine):
@@ -248,7 +241,6 @@ async def on_ready():
           f'{freeze_note}')
     await client.change_presence(activity=discord.Game(name="/geek - Jestem geekiem"))
 
-    # client.loop.create_task(reset_connection_count())
 
 channel_id = 1346496307023581274  # anty-plaster
 # Obsługa wiadomości użytkowników
@@ -280,11 +272,6 @@ async def on_presence_update(before: discord.Member, after: discord.Member):
 
                 print(f"{TARGET_USER_NAME} is online! To {user_stats[current_date]}. połączenie dziś.")
                 await channel.send(embed=embed)
-
-
-# async def start_reset_task():
-#     """Rozpoczyna asynchroniczny reset licznika statystyk co 24h."""
-#     await reset_connection_count()
 
 
 @client.event

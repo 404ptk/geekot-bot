@@ -24,7 +24,6 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 TXT_DIR = PROJECT_ROOT / "txt"
 CONFIG_FILE = TXT_DIR / "drive_daily.json"
 STATE_FILE = TXT_DIR / "drive_daily_state.json"
-DEFAULT_SERVICE_ACCOUNT = TXT_DIR / "google_service_account.json"
 
 DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
 FOLDER_MIME = "application/vnd.google-apps.folder"
