@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 import discord
 
+from jobs.api_logging import report_api_state
 from jobs.api_status import build_status_embed, check_all_services
 from jobs.config import load_config
 from jobs.constants import API_STATUS_INTERVAL_MINUTES, API_STATUS_MESSAGE_ID
@@ -38,7 +39,10 @@ async def update_api_status_message(client: discord.Client):
                 summary += f" Niedziałające: {failed_services}."
             else:
                 summary += " Wszystkie usługi działają."
-            print(summary)
+            report_api_state(
+                "api_status", (tuple(sorted(results.items())), tuple(sorted(failures.items()))),
+                summary, failed=bool(failures),
+            )
         except discord.NotFound:
             print(f"[Jobs] API status message {API_STATUS_MESSAGE_ID} not found.")
         except Exception as exc:

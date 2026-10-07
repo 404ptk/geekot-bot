@@ -2,6 +2,7 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
+from jobs.api_logging import report_provider_error, report_provider_success
 from jobs.filters import matches_city
 from jobs.providers.common import api_filters, merge_search
 
@@ -126,11 +127,13 @@ def fetch_offers_page(
         )
         response.raise_for_status()
         payload = response.json()
+        if not raise_errors:
+            report_provider_success("OLX")
         return payload.get("data", []) if isinstance(payload, dict) else []
     except Exception as exc:
-        print(f"[Jobs][OLX] API error (offset {offset}): {exc}")
         if raise_errors:
             raise
+        report_provider_error("OLX", exc)
         return []
 
 

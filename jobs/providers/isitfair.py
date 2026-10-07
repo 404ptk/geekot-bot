@@ -1,5 +1,6 @@
 import requests
 
+from jobs.api_logging import report_provider_error, report_provider_success
 from jobs.filters import matches_city, is_fully_remote
 from jobs.providers.common import api_filters, merge_search
 
@@ -31,11 +32,13 @@ def fetch_offers_page(filters, page: int, search: str = None, *, raise_errors: b
         )
         response.raise_for_status()
         payload = response.json()
+        if not raise_errors:
+            report_provider_success("IsItFair")
         return payload.get("data", []) if isinstance(payload, dict) else []
     except Exception as e:
-        print(f"[Jobs][IsItFair] API error (page {page}): {e}")
         if raise_errors:
             raise
+        report_provider_error("IsItFair", e)
         return []
 
 
@@ -69,4 +72,3 @@ def collect_offers(filters, max_pages: int):
         collected.extend(fetch_offers(filters, max_pages))
 
     return collected
-

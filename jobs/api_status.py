@@ -4,6 +4,7 @@ from zoneinfo import ZoneInfo
 
 import discord
 
+from jobs.api_logging import error_summary
 from jobs.providers.isitfair import fetch_offers_page as isitfair_fetch_page
 from jobs.providers.olx import fetch_offers_page as olx_fetch_page
 from jobs.providers.sources import source_label
@@ -23,13 +24,13 @@ def probe_service(service_id: str, provider: str) -> Tuple[bool, Optional[str]]:
         offers = isitfair_fetch_page(
             {"offer_status": "active", "offer_source": service_id},
             page=1,
+            search=service_id,
             raise_errors=True,
         )
     else:
         offers = olx_fetch_page(query=None, offset=0, raise_errors=True)
-    if offers:
-        return True, None
-    return False, "pusta odpowiedź API"
+    # An empty search result is a successful API response, not an outage.
+    return True, None
 
 
 def check_all_services() -> Tuple[Dict[str, bool], Dict[str, str]]:
@@ -43,7 +44,7 @@ def check_all_services() -> Tuple[Dict[str, bool], Dict[str, str]]:
                 failures[service_id] = reason
         except Exception as exc:
             results[service_id] = False
-            failures[service_id] = str(exc)
+            failures[service_id] = error_summary(exc)
     return results, failures
 
 
