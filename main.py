@@ -148,7 +148,6 @@ def save_json(data, file_path):
 
 
 TARGET_USER_NAME = "phester102"
-user_connection_count = 0
 user_stats = load_json(STATS_FILE, startup_label="User stats")
 user_stats_history = load_json(STATS_HISTORY_FILE, startup_label="User stats history")
 current_date = datetime.now().strftime("%Y-%m-%d")

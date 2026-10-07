@@ -114,10 +114,6 @@ def get_member_in_voice(guild: discord.Guild, user_id: int) -> Optional[discord.
     return None
 
 
-def is_user_in_guild_voice(guild: discord.Guild, user_id: int) -> bool:
-    return get_member_in_voice(guild, user_id) is not None
-
-
 def reconcile_voice_sessions(guild: Optional[discord.Guild], now: float, stats: Optional[dict] = None) -> bool:
     """Flush stale sessions for users who are no longer in countable voice."""
     changed = False
@@ -202,12 +198,6 @@ def update_message_count(user_id):
     stats[user_id_str]["messages"] = stats[user_id_str].get("messages", 0) + 1
     save_stats(stats)
 
-def update_voice_time(user_id, duration):
-    with _stats_lock:
-        stats = load_stats()
-        stats = credit_voice_time(stats, user_id, duration)
-        save_stats(stats)
-
 def format_duration(seconds):
     td = timedelta(seconds=int(seconds))
     days = td.days
@@ -222,10 +212,6 @@ def format_duration(seconds):
     parts.append(f"{minutes}m")
     
     return " ".join(parts) if parts else "0m"
-
-
-def wiadomosci_label(count: int) -> str:
-    return "wiadomość" if count == 1 else "wiadomości"
 
 
 def _load_font(size: int, *, weight: str = "regular") -> ImageFont.ImageFont:

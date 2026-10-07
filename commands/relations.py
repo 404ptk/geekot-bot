@@ -191,16 +191,6 @@ def build_user_image_file(user_alias: str) -> Optional[discord.File]:
     return None
 
 
-def apply_user_thumbnail(embed: discord.Embed, user_alias: str) -> Optional[str]:
-    for ext in ("png", "jpg", "jpeg", "webp"):
-        image_name = f"{user_alias}.{ext}"
-        image_path = RELATIONS_IMAGE_DIR / image_name
-        if image_path.exists():
-            embed.set_thumbnail(url=f"attachment://{image_name}")
-            return image_name
-    return None
-
-
 def build_relation_embed(
     user_a: str,
     user_b: str,

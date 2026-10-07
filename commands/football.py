@@ -38,17 +38,6 @@ TOTAL_GAMES_PER_SEASON = {
     "ligue_1": 34          # Ligue 1
 }
 
-# Funkcja do formatowania daty z formatu YYYY-MM-DD na 'DD miesiąc'
-def format_date_polish(date_str):
-    months = ["stycznia", "lutego", "marca", "kwietnia", "maja", "czerwca", "lipca", "sierpnia", "września", "października", "listopada", "grudnia"]
-    try:
-        date_obj = datetime.strptime(date_str, "%Y-%m-%d")
-        day = date_obj.day
-        month = months[date_obj.month - 1]
-        return f"{day} {month}"
-    except Exception:
-        return date_str
-
 def create_nice_football_table_embed(league_name, standings, season, league_key):
     embed = discord.Embed(
         title=f"🏆 {league_name} – Tabela {season}",

@@ -26,10 +26,3 @@ def dedupe_offers(offers: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         seen.add(offer_uuid)
         unique.append(offer)
     return unique
-
-
-def offer_id(offer: Dict[str, Any], provider: str = "isitfair") -> Optional[str]:
-    raw_id = offer.get("offer_uuid")
-    if not raw_id:
-        return None
-    return f"{provider}:{raw_id}"
