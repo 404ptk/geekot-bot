@@ -220,7 +220,6 @@ async def on_ready():
 
     for step_name, step_coroutine in startup_steps:
         await run_startup_step(step_name, step_coroutine)
-    # await youtube_watch.setup_youtube_watch(client, client.tree, guild_id=GUILD_ID)  # start watcher
 
     startup_completed = True
     mark_bot_started()
