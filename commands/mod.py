@@ -1,12 +1,15 @@
 import discord
 import json
 import os
+import logging
 from datetime import datetime
 
 GUILD_ID = 551503797067710504
 ARCHIVE_CATEGORY_ID = 1360605748186452110
 OWNER_ID = 443406275716579348  # Twój discord user ID
 CHANNEL_PRIVACY_FILE = "txt/channel_privacy_settings.json"
+CHANNEL_GUARD_ROLES = {"high tier guard", "mid tier guard"}
+logger = logging.getLogger(__name__)
 
 def load_channel_privacy():
     """Ładuje ustawienia prywatności kanałów"""
@@ -39,6 +42,9 @@ def extract_channel_privacy(channel: discord.TextChannel) -> dict:
         "saved_at": datetime.now().isoformat(),
         "category_id": channel.category_id,
         "permissions_synced": channel.permissions_synced,
+        "position": channel.position,
+        "default_auto_archive_duration": channel.default_auto_archive_duration,
+        "default_thread_slowmode_delay": channel.default_thread_slowmode_delay,
         "permissions_overwrites": {},
         "topic": channel.topic,
         "slowmode_delay": channel.slowmode_delay,
@@ -76,7 +82,7 @@ async def setup_mod_commands(client: discord.Client, tree: discord.app_commands.
         kanal: discord.TextChannel = None
     ):
         member = interaction.user
-        if not any(role.name.lower() == "high tier guard" for role in getattr(member, "roles", [])):
+        if not any(role.name.lower() in CHANNEL_GUARD_ROLES for role in getattr(member, "roles", [])):
             await interaction.response.send_message(
                 "Nie masz wystarczających uprawnień do wykonania tej komendy.",
                 ephemeral=True
@@ -95,6 +101,13 @@ async def setup_mod_commands(client: discord.Client, tree: discord.app_commands.
             await interaction.response.send_message(
                 f"Nie znaleziono kategorii o ID {ARCHIVE_CATEGORY_ID}.",
                 ephemeral=True
+            )
+            return
+
+        if channel.category_id == ARCHIVE_CATEGORY_ID:
+            await interaction.response.send_message(
+                "Kanał jest już w archiwum. Nie nadpisuję jego zapisanych ustawień.",
+                ephemeral=True,
             )
             return
 
@@ -128,6 +141,131 @@ async def setup_mod_commands(client: discord.Client, tree: discord.app_commands.
         await channel.edit(category=category, sync_permissions=False, overwrites=overwrites)
         await interaction.response.send_message(
             f"Kanał {channel.mention} został przeniesiony do kategorii **{category.name}** i zablokowano możliwość pisania.\n✅ Ustawienia prywatności kanału zostały zapisane."
+        )
+
+    @tree.command(
+        name="otworz",
+        description="Przywraca kanał z archiwum wraz z zapisanymi ustawieniami",
+        guild=guild,
+    )
+    @discord.app_commands.describe(
+        kanal="Kanał do otwarcia (jeśli nie podasz, otworzy bieżący)"
+    )
+    async def otworz(interaction: discord.Interaction, kanal: discord.TextChannel = None):
+        channel = kanal or interaction.channel
+
+        def log_issue(code, detail):
+            logger.warning(
+                "[otworz:%s] guild=%s channel=%s actor=%s %s",
+                code, interaction.guild.id, getattr(channel, "id", None), interaction.user.id, detail,
+            )
+
+        if not any(role.name.lower() in CHANNEL_GUARD_ROLES for role in getattr(interaction.user, "roles", [])):
+            log_issue("access_denied", "Użytkownik nie ma roli guard.")
+            await interaction.response.send_message(
+                "Nie masz wystarczających uprawnień do wykonania tej komendy.", ephemeral=True
+            )
+            return
+        if not isinstance(channel, discord.TextChannel):
+            log_issue("unsupported_channel", "Kanał nie jest kanałem tekstowym.")
+            await interaction.response.send_message(
+                "Ta komenda działa tylko na kanałach tekstowych.", ephemeral=True
+            )
+            return
+        if channel.category_id != ARCHIVE_CATEGORY_ID:
+            log_issue("already_open", "Kanał nie znajduje się w archiwum.")
+            await interaction.response.send_message(
+                "Kanał nie jest w archiwum. Nie nadpisuję jego aktualnych ustawień.", ephemeral=True
+            )
+            return
+        settings = load_channel_privacy().get(str(channel.id))
+        if not isinstance(settings, dict) or not isinstance(settings.get("permissions_overwrites"), dict):
+            log_issue("missing_permissions", "Brak prawidłowego zapisu uprawnień; przerwano przywracanie.")
+            await interaction.response.send_message(
+                "Nie można otworzyć kanału: brak zapisu uprawnień. Kanał nie został zmieniony.",
+                ephemeral=True,
+            )
+            return
+        warnings = []
+        category_id = settings.get("category_id")
+        category = discord.utils.get(interaction.guild.categories, id=category_id) if category_id is not None else None
+        if "category_id" not in settings:
+            warnings.append("W zapisie brakuje pierwotnej kategorii — kanał umieszczono poza kategoriami.")
+            log_issue("missing_category_record", warnings[-1])
+        elif category_id is not None and category is None:
+            warnings.append(f"Kategoria {category_id} już nie istnieje — kanał umieszczono poza kategoriami.")
+            log_issue("deleted_category", warnings[-1])
+
+        await interaction.response.defer(ephemeral=True)
+        overwrites = {}
+        for target_id, saved in settings["permissions_overwrites"].items():
+            try:
+                if saved["type"] not in {"role", "member"}:
+                    raise ValueError("Nieznany typ odbiorcy uprawnień")
+                restored = discord.PermissionOverwrite.from_pair(
+                    discord.Permissions(saved["allow"]), discord.Permissions(saved["deny"])
+                )
+                target_number = int(target_id)
+            except (KeyError, TypeError, ValueError) as exc:
+                log_issue("invalid_permission_record", f"target={target_id} error={exc}")
+                await interaction.followup.send(
+                    "Zapis uprawnień jest uszkodzony. Kanał nie został zmieniony; szczegóły w logu bota.", ephemeral=True
+                )
+                return
+            if saved["type"] == "role":
+                target = interaction.guild.get_role(target_number)
+            else:
+                target = interaction.guild.get_member(target_number)
+                if target is None:
+                    try:
+                        target = await interaction.guild.fetch_member(target_number)
+                    except discord.NotFound:
+                        target = None
+                    except discord.HTTPException as exc:
+                        log_issue("member_lookup_failed", f"target={target_id} error={exc}")
+                        await interaction.followup.send(
+                            "Nie udało się odczytać zapisanych uprawnień użytkownika. Kanał nie został zmieniony.", ephemeral=True
+                        )
+                        return
+            if target is None:
+                kind = "roli" if saved["type"] == "role" else "użytkownika"
+                warnings.append(f"Nie znaleziono {kind} {saved.get('name', target_id)} (ID {target_id}) — pominięto jej/jego uprawnienia.")
+                log_issue("missing_role" if saved["type"] == "role" else "missing_member", warnings[-1])
+                continue
+            overwrites[target] = restored
+
+        # Restore the snapshot, not the category's potentially changed rules.
+        options = {
+            "category": category,
+            "sync_permissions": False,
+            "overwrites": overwrites,
+        }
+        for key in ("channel_name", "topic", "slowmode_delay", "nsfw", "position", "default_auto_archive_duration", "default_thread_slowmode_delay"):
+            if key in settings:
+                options["name" if key == "channel_name" else key] = settings[key]
+            else:
+                warnings.append(f"Brak zapisanego ustawienia `{key}` — pozostawiono obecną wartość.")
+                log_issue("missing_setting", f"setting={key}")
+        try:
+            await channel.edit(**options)
+        except (discord.HTTPException, ValueError, TypeError) as exc:
+            log_issue("restore_failed", f"error={type(exc).__name__}: {exc}")
+            await interaction.followup.send(
+                "Discord odrzucił przywracanie kanału. Sprawdź uprawnienia bota i aktualne ustawienia kanału; zapis został zachowany.",
+                ephemeral=True,
+            )
+            return
+        message = f"Kanał {channel.mention} został otwarty."
+        if warnings:
+            message += "\n⚠️ Przywrócono dostępne ustawienia, ale nie wszystko udało się odtworzyć:\n" + "\n".join(f"• {w}" for w in warnings[:8])
+            if len(warnings) > 8:
+                message += f"\n• Pozostałe ostrzeżenia: {len(warnings) - 8}. Szczegóły w logu bota."
+        else:
+            message += " Przywrócono pierwotną kategorię i zapisane ustawienia kanału."
+        logger.info("[otworz:restored] guild=%s channel=%s actor=%s warnings=%s", interaction.guild.id, channel.id, interaction.user.id, len(warnings))
+        await interaction.followup.send(
+            message[:1900],
+            ephemeral=True,
         )
 
     # --- Czyszczenie wiadomości ---

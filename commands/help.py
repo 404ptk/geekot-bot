@@ -47,6 +47,11 @@ async def setup_help_commands(client: discord.Client, tree: app_commands.Command
             "`/aktywnosc` — Twoja aktywność\n"
             "`/aktywnosc [nick]` — Aktywność wybranego użytkownika", inline=False)
         
+        embed.add_field(name="🔒 **Archiwum kanałów**", value=
+            "Dla high tier guard i mid tier guard:\n"
+            "`/zamknij [kanał]` — Archiwizuje kanał i blokuje pisanie\n"
+            "`/otworz [kanał]` — Przywraca kategorię i zapisane ustawienia", inline=False)
+
         embed.add_field(name="📝 **Changelog**", value="Najnowsze zmiany w bocie:\n"
                         "`/changelog`", inline=False)
         
