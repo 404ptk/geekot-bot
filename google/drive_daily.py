@@ -40,8 +40,8 @@ DOWNWEIGHTED_FOLDER_SUBSTRING = "energylandia"
 DOWNWEIGHTED_FOLDER_WEIGHT = 0.5
 # Exact folder path (relative to root) blocked for N days after use.
 ROUTE_COOLDOWN_DAYS = 3
-# Root-level folder exempt from route cooldown (whole subtree).
-ROUTE_COOLDOWN_EXEMPT_ROOT = "zdjecia"
+# Photo folders exempt from route cooldown, including their whole subtree.
+ROUTE_COOLDOWN_EXEMPT_FOLDERS = {"zdjecia", "zdjęcia"}
 
 _heif_registered = False
 
@@ -79,11 +79,11 @@ def _route_key(route: str) -> str:
 
 
 def _is_route_cooldown_exempt(route: str) -> bool:
-    """Exempt root folder 'zdjecia' and everything under it."""
-    if not route:
-        return False
-    first = route.split("/", 1)[0].strip().lower()
-    return first == ROUTE_COOLDOWN_EXEMPT_ROOT.lower()
+    """Exempt photo folders and descendants at any depth below the root."""
+    return any(
+        part.strip().lower() in ROUTE_COOLDOWN_EXEMPT_FOLDERS
+        for part in (route or "").split("/")
+    )
 
 
 def _prune_recent_routes(
