@@ -38,6 +38,6 @@ python main.py
 
 ## Notes
 
-- Relation users default to the existing eight nicknames. `/config relacje dodaj` adds a nickname with two required Polish forms: `celownik` (e.g. "wypowiedział kosę jarowi") and `narzednik` (e.g. "trzyma zgodę z jarem"). `/config relacje usun` offers nickname autocomplete and removes the user together with their relations and temporary agreements. The list is persisted in `txt/relation_users.json`, including removals of default users.
+- `/config` opens a private configuration panel, organized by category and section. Currently **Społeczność → Relacje** supports adding nicknames through a form with Polish dative and instrumental examples, and removing users through a paginated selector with an explicit delete button. Removal also clears relations and temporary agreements. The existing eight users are defaults; changes persist in `txt/relation_users.json`. Panels expire after 10 minutes of inactivity; reopen with `/config`. New screens are registered in `CONFIG_SECTIONS` in `commands/config.py`.
 - There is no central configuration template; setup currently requires creating files in `txt/` manually.
 - Runtime state is stored in JSON/TXT files, with no database or built-in backup mechanism.

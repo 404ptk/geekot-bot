@@ -512,59 +512,43 @@ async def relation_autocomplete(
     return choices[:25]
 
 
-def register_relations_config_commands(group: app_commands.Group) -> None:
-    @group.command(name="dodaj", description="Dodaje użytkownika i odmiany jego nicku do relacji")
-    @app_commands.describe(
-        nick="Podstawowy nick: np. jaro w zdaniu „jaro trzyma zgodę z kuzią”",
-        celownik="Komu? Np. jarowi w zdaniu „kuzia wypowiedział kosę jarowi”",
-        narzednik="Z kim? Np. jarem w zdaniu „kuzia trzyma zgodę z jarem”",
-    )
-    async def dodaj(
-        interaction: discord.Interaction, nick: str, celownik: str, narzednik: str
-    ):
-        nick = normalize_nick(nick)
-        celownik, narzednik = celownik.strip(), narzednik.strip()
-        if (not nick or nick in (".", "..") or any(char in nick for char in "/\\|")
-                or not celownik or not narzednik or any(len(value) > 100 for value in (nick, celownik, narzednik))):
-            await interaction.response.send_message(
-                "Podaj nick i obie odmiany (1–100 znaków). Nick nie może zawierać /, \\ ani |.", ephemeral=True
-            )
-            return
-        users = load_relation_users()
-        if nick in users:
-            await interaction.response.send_message("Ten nick jest już na liście relacji.", ephemeral=True)
-            return
-        users[nick] = {"celownik": celownik, "narzednik": narzednik}
-        save_relation_users(users)
-        await interaction.response.send_message(f"Dodano do relacji: **{nick}** (komu: {celownik}, z kim: {narzednik}).", ephemeral=True)
+def add_relation_user(nick: str, celownik: str, narzednik: str) -> str:
+    nick = normalize_nick(nick)
+    celownik, narzednik = celownik.strip(), narzednik.strip()
+    if (not nick or nick in (".", "..") or any(char in nick for char in "/\\|")
+            or not celownik or not narzednik
+            or any(len(value) > 100 for value in (nick, celownik, narzednik))):
+        raise ValueError("Podaj nick i obie odmiany (1–100 znaków). Nick nie może zawierać /, \\ ani |.")
+    users = load_relation_users()
+    if nick in users:
+        raise ValueError("Ten nick jest już na liście relacji.")
+    users[nick] = {"celownik": celownik, "narzednik": narzednik}
+    save_relation_users(users)
+    return nick
 
-    @group.command(name="usun", description="Usuwa użytkownika z listy i wszystkie jego relacje")
-    @app_commands.describe(nick="Nick użytkownika z listy relacji, np. jaro")
-    @app_commands.autocomplete(nick=nick_autocomplete)
-    async def usun(interaction: discord.Interaction, nick: str):
-        nick = normalize_nick(nick)
-        users = load_relation_users()
-        if nick not in users:
-            await interaction.response.send_message("Tego nicku nie ma na liście relacji.", ephemeral=True)
-            return
-        data = load_relations()
-        data.pop(nick, None)
-        for other in list(data):
-            data[other].pop(nick, None)
-            if not data[other]:
-                del data[other]
-        temp_data = load_temp_relations()
-        for pair_key, record in list(temp_data.items()):
-            if nick in (record.get("user_a"), record.get("user_b")):
-                task = ACTIVE_TEMP_TASKS.pop(pair_key, None)
-                if task:
-                    task.cancel()
-                del temp_data[pair_key]
-        save_relations(data)
-        save_temp_relations(temp_data)
-        del users[nick]
-        save_relation_users(users)
-        await interaction.response.send_message(f"Usunięto **{nick}** z listy i wyczyszczono jego relacje.", ephemeral=True)
+
+def remove_relation_user(nick: str) -> None:
+    nick = normalize_nick(nick)
+    users = load_relation_users()
+    if nick not in users:
+        raise ValueError("Tego nicku nie ma już na liście relacji.")
+    data = load_relations()
+    data.pop(nick, None)
+    for other in list(data):
+        data[other].pop(nick, None)
+        if not data[other]:
+            del data[other]
+    temp_data = load_temp_relations()
+    for pair_key, record in list(temp_data.items()):
+        if nick in (record.get("user_a"), record.get("user_b")):
+            task = ACTIVE_TEMP_TASKS.pop(pair_key, None)
+            if task:
+                task.cancel()
+            del temp_data[pair_key]
+    save_relations(data)
+    save_temp_relations(temp_data)
+    del users[nick]
+    save_relation_users(users)
 
 
 async def setup_relations_commands(client: discord.Client, tree: app_commands.CommandTree, guild_id: int = None):
