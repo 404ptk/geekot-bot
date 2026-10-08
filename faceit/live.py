@@ -10,11 +10,12 @@ from discord.ext import tasks
 from PIL import Image, ImageDraw, ImageFont
 
 from faceit.common import format_faceit_form
+from config.conf_faceit_live_settings import load_config, DEFAULT_CHANNEL_ID
 
 
 # Live z grafiką (ten sam kanał co stary embed; odświeżanie co 5 min)
 FACEIT_LIVE_IMAGE_STATE_FILE = "txt/discordfaceit_live_image.json"
-FACEIT_LIVE_IMAGE_CHANNEL_ID = 1504791638264905778
+FACEIT_LIVE_IMAGE_CHANNEL_ID = DEFAULT_CHANNEL_ID
 AVATAR_CACHE_DIR = os.path.normpath(
     os.path.join(os.path.dirname(__file__), "..", "images", "faceit_avatars")
 )
@@ -143,7 +144,7 @@ def collect_discordfaceit_player_stats():
 
     player_stats = []
 
-    for nickname in fu.player_nicknames:
+    for nickname in load_config()["players"]:
         player_data = fu.get_faceit_player_data(nickname)
         if player_data:
             player_level = player_data.get("games", {}).get("cs2", {}).get("skill_level", 0)
@@ -360,7 +361,7 @@ def build_faceit_live_image(player_stats: Optional[List[dict]] = None) -> io.Byt
         for key, value in (daily_stats.get("stats") or {}).items():
             daily_map[str(key).lower()] = int(value)
 
-    rows = player_stats[:10]
+    rows = player_stats
     scale = 2
     pad = 28 * scale
     header_h = 76 * scale
@@ -605,6 +606,23 @@ async def _send_live_image(channel, buffer) -> discord.Message:
     return message
 
 
+async def _remove_previous_channel_message(state, current_channel_id):
+    previous_channel_id = _parse_message_id(state.get("channel_id"))
+    message_id = _parse_message_id(state.get("message_id"))
+    if not previous_channel_id or previous_channel_id == current_channel_id or not message_id:
+        return
+    try:
+        channel = CLIENT_REF.get_channel(previous_channel_id)
+        if channel is None:
+            channel = await CLIENT_REF.fetch_channel(previous_channel_id)
+        message = await channel.fetch_message(message_id)
+        if (message.author.id == CLIENT_REF.user.id
+                and any(_is_live_image_attachment(attachment) for attachment in message.attachments)):
+            await message.delete()
+    except (discord.Forbidden, discord.NotFound, discord.HTTPException) as exc:
+        print(f"Faceit live image: nie udało się usunąć poprzedniej wiadomości: {exc}")
+
+
 async def refresh_faceit_live_image_message():
     """Odświeża grafikę FACEIT LIVE — edycja jednej wiadomości co 5 min."""
     import asyncio
@@ -617,10 +635,12 @@ async def refresh_faceit_live_image_message():
         if not CLIENT_REF or not CLIENT_REF.is_ready():
             return
 
-        channel = CLIENT_REF.get_channel(FACEIT_LIVE_IMAGE_CHANNEL_ID)
+        config = load_config()
+        channel_id = config["channel_id"]
+        channel = CLIENT_REF.get_channel(channel_id)
         if channel is None:
             try:
-                channel = await CLIENT_REF.fetch_channel(FACEIT_LIVE_IMAGE_CHANNEL_ID)
+                channel = await CLIENT_REF.fetch_channel(channel_id)
             except (discord.Forbidden, discord.NotFound, discord.HTTPException):
                 return
 
@@ -633,21 +653,26 @@ async def refresh_faceit_live_image_message():
             print(f"Faceit live image: błąd generowania grafiki: {exc}")
             return
 
+        if load_config() != config:
+            # Settings changed while the image was being generated; retry next cycle.
+            return
+
         # Ponownie wczytaj stan po generowaniu (inny task mógł już zapisać message_id)
         state = load_faceit_live_image_state()
-        message_id = _parse_message_id(state.get("message_id"))
+        message_id = (_parse_message_id(state.get("message_id"))
+                      if str(state.get("channel_id")) == str(channel_id) else None)
 
         try:
             message = await _resolve_live_image_message(channel, message_id)
             if message is not None:
                 await _edit_live_image(channel, buffer, message)
-                return
-
-            print(
-                f"Faceit live image: brak grafiki w ostatnich 20 na kanale {channel.id} "
-                f"— wysyłam nową."
-            )
-            await _send_live_image(channel, buffer)
+            else:
+                print(
+                    f"Faceit live image: brak grafiki w ostatnich 20 na kanale {channel.id} "
+                    f"— wysyłam nową."
+                )
+                await _send_live_image(channel, buffer)
+            await _remove_previous_channel_message(state, channel_id)
         except (discord.Forbidden, discord.HTTPException) as exc:
             print(f"Faceit live image: nie udało się zaktualizować wiadomości: {exc}")
         except Exception as exc:

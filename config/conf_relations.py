@@ -1,93 +1,15 @@
-"""Shared configuration panel; feature screens register through CONFIG_SECTIONS."""
-from dataclasses import dataclass
-from typing import Callable
-
+"""Relations configuration screens."""
 import discord
-from discord import app_commands
 
-from commands import relations
-
-
-@dataclass(frozen=True)
-class ConfigSection:
-    key: str
-    category: str
-    title: str
-    description: str
-    open_view: Callable
-
-
-class ConfigView(discord.ui.View):
-    def __init__(self, owner_id: int):
-        super().__init__(timeout=600)
-        self.owner_id = owner_id
-        self.message = None
-
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        if interaction.user.id != self.owner_id:
-            await interaction.response.send_message("Otwórz własny panel przez /config.", ephemeral=True)
-            return False
-        return True
-
-    async def show(self, interaction: discord.Interaction, view, embed):
-        await interaction.response.edit_message(embed=embed, view=view)
-        view.message = interaction.message or self.message
-        self.stop()
-
-    async def on_timeout(self):
-        for item in self.children:
-            item.disabled = True
-        if self.message:
-            try:
-                await self.message.edit(content="Panel wygasł. Wpisz /config, aby otworzyć go ponownie.", view=self)
-            except discord.HTTPException:
-                pass
-
-    async def on_error(self, interaction, error, item):
-        print(f"Config panel error: {error}")
-        message = "Nie udało się wykonać operacji. Spróbuj ponownie."
-        if interaction.response.is_done():
-            await interaction.followup.send(message, ephemeral=True)
-        else:
-            await interaction.response.send_message(message, ephemeral=True)
-
-
-class SectionSelect(discord.ui.Select):
-    def __init__(self):
-        super().__init__(placeholder="Wybierz ustawienia…", options=[
-            discord.SelectOption(label=f"{section.category} · {section.title}", value=section.key,
-                                 description=section.description)
-            for section in CONFIG_SECTIONS
-        ])
-
-    async def callback(self, interaction):
-        section = next(section for section in CONFIG_SECTIONS if section.key == self.values[0])
-        view = section.open_view(self.view.owner_id)
-        await self.view.show(interaction, view, view.embed())
-
-
-class ConfigHomeView(ConfigView):
-    def __init__(self, owner_id):
-        super().__init__(owner_id)
-        self.add_item(SectionSelect())
-
-    def embed(self):
-        embed = discord.Embed(title="⚙️ Konfiguracja bota", description="Wybierz ustawienia z listy poniżej.", color=discord.Color.blurple())
-        categories = dict.fromkeys(section.category for section in CONFIG_SECTIONS)
-        for category in categories:
-            embed.add_field(name=category, value="\n".join(
-                f"**{section.title}** — {section.description}"
-                for section in CONFIG_SECTIONS if section.category == category
-            ), inline=False)
-        embed.set_footer(text="Panel widoczny tylko dla Ciebie • wygasa po 10 minutach bezczynności")
-        return embed
+from config.conf_panel import ConfigView
+from config import conf_relations_settings as relation_users
 
 
 class RelationsView(ConfigView):
     def embed(self, notice=None):
-        users = relations.load_relation_users()
+        users = relation_users.load_relation_users()
         names = ", ".join(discord.utils.escape_markdown(nick) for nick in users) or "Lista jest pusta."
-        embed = discord.Embed(title="⚙️ Społeczność → Relacje", color=discord.Color.blurple(),
+        embed = discord.Embed(title="⚙️ Relacje", color=discord.Color.blurple(),
                               description="Zarządzaj użytkownikami dostępnymi w relacjach.")
         embed.add_field(name=f"Użytkownicy ({len(users)})", value=names[:1020], inline=False)
         if notice:
@@ -105,6 +27,7 @@ class RelationsView(ConfigView):
 
     @discord.ui.button(label="Menu główne", row=1)
     async def home(self, interaction, button):
+        from config.conf_menu import ConfigHomeView
         view = ConfigHomeView(self.owner_id)
         await self.show(interaction, view, view.embed())
 
@@ -126,7 +49,7 @@ class AddRelationUserModal(discord.ui.Modal, title="Dodaj użytkownika do relacj
 
     async def on_submit(self, interaction):
         try:
-            nick = relations.add_relation_user(self.nick.component.value, self.celownik.component.value,
+            nick = relation_users.add_relation_user(self.nick.component.value, self.celownik.component.value,
                                                self.narzednik.component.value)
         except ValueError as error:
             await interaction.response.send_message(str(error), ephemeral=True)
@@ -152,7 +75,7 @@ class UserSelect(discord.ui.Select):
 class RemoveRelationUserView(ConfigView):
     def __init__(self, owner_id, page=0, selected=None):
         super().__init__(owner_id)
-        users = sorted(relations.load_relation_users())
+        users = sorted(relation_users.load_relation_users())
         self.pages = max(1, (len(users) + 24) // 25)
         self.page = min(max(page, 0), self.pages - 1)
         self.selected = selected if selected in users else None
@@ -164,7 +87,7 @@ class RemoveRelationUserView(ConfigView):
 
     def embed(self):
         text = "Wybierz nick z listy, a następnie kliknij „Usuń”. Usunięte zostaną też wszystkie relacje i tymczasowe zgody tej osoby."
-        if not relations.load_relation_users():
+        if not relation_users.load_relation_users():
             text = "Lista użytkowników jest pusta."
         if self.selected:
             text += f"\n\nWybrano: **{discord.utils.escape_markdown(self.selected)}**"
@@ -185,7 +108,7 @@ class RemoveRelationUserView(ConfigView):
     @discord.ui.button(label="Usuń", style=discord.ButtonStyle.danger, row=2)
     async def confirm(self, interaction, button):
         try:
-            relations.remove_relation_user(self.selected)
+            relation_users.remove_relation_user(self.selected)
             notice = f"Usunięto **{discord.utils.escape_markdown(self.selected)}** i jego relacje."
         except ValueError as error:
             notice = str(error)
@@ -198,17 +121,3 @@ class RemoveRelationUserView(ConfigView):
         await self.show(interaction, view, view.embed())
 
 
-# Add future screens here; configuration navigation stays in this module.
-CONFIG_SECTIONS = (
-    ConfigSection("relations", "Społeczność", "Relacje", "Użytkownicy i odmiana nicków", RelationsView),
-)
-
-
-async def setup_config_commands(client: discord.Client, tree: app_commands.CommandTree, guild_id: int = None):
-    guild = discord.Object(id=guild_id if guild_id else relations.GUILD_ID)
-
-    @tree.command(name="config", description="Otwiera prywatny panel konfiguracji bota", guild=guild)
-    async def config(interaction: discord.Interaction):
-        view = ConfigHomeView(interaction.user.id)
-        await interaction.response.send_message(embed=view.embed(), view=view, ephemeral=True)
-        view.message = await interaction.original_response()

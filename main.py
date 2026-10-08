@@ -24,7 +24,7 @@ import masny_utils
 import leetify_utils
 from commands import steam as steam_module
 from commands import relations as relations_module
-from commands import config as config_module
+from config import conf_menu as config_module
 from commands import wakacje as wakacje_module
 from commands import aktywnosc as aktywnosc_module
 from commands import fifa as fifa_module
