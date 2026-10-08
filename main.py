@@ -24,6 +24,7 @@ import masny_utils
 import leetify_utils
 from commands import steam as steam_module
 from commands import relations as relations_module
+from commands import config as config_module
 from commands import wakacje as wakacje_module
 from commands import aktywnosc as aktywnosc_module
 from commands import fifa as fifa_module
@@ -207,6 +208,7 @@ async def on_ready():
         ("Masny commands", masny_utils.setup_masny_commands(client, client.tree, guild_id=GUILD_ID)),
         ("Leetify commands", leetify_utils.setup_leetify_commands(client, client.tree, guild_id=GUILD_ID)),
         ("Steam commands", steam_module.setup_steam_commands(client, client.tree, guild_id=GUILD_ID)),
+        ("Config commands", config_module.setup_config_commands(client, client.tree, guild_id=GUILD_ID)),
         ("Relations commands", relations_module.setup_relations_commands(client, client.tree, guild_id=GUILD_ID)),
         ("Wakacje commands", wakacje_module.setup_wakacje_commands(client, client.tree)),
         ("Activity commands", aktywnosc_module.setup_aktywnosc_commands(client, client.tree, guild_id=GUILD_ID)),

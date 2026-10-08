@@ -38,5 +38,6 @@ python main.py
 
 ## Notes
 
+- Relation users default to the existing eight nicknames. `/config relacje dodaj` adds a nickname with two required Polish forms: `celownik` (e.g. "wypowiedział kosę jarowi") and `narzednik` (e.g. "trzyma zgodę z jarem"). `/config relacje usun` offers nickname autocomplete and removes the user together with their relations and temporary agreements. The list is persisted in `txt/relation_users.json`, including removals of default users.
 - There is no central configuration template; setup currently requires creating files in `txt/` manually.
 - Runtime state is stored in JSON/TXT files, with no database or built-in backup mechanism.

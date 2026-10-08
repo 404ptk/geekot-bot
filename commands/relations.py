@@ -11,6 +11,7 @@ from discord import app_commands
 GUILD_ID = 551503797067710504
 RELATIONS_FILE = "txt/relations.json"
 TEMP_RELATIONS_FILE = "txt/temp_relations.json"
+RELATION_USERS_FILE = "txt/relation_users.json"
 RELATIONS_IMAGE_DIR = Path(__file__).resolve().parents[1] / "images" / "relations"
 
 ALLOWED_USERS = [
@@ -23,7 +24,6 @@ ALLOWED_USERS = [
     "masny",
     "kajtek",
 ]
-ALLOWED_USERS_SET = set(ALLOWED_USERS)
 
 USER_ID_TO_ALIAS = {
     443406275716579348: "jaro",
@@ -138,6 +138,22 @@ def normalize_nick(value: str) -> str:
     return value.strip().lower()
 
 
+def load_relation_users() -> Dict[str, Dict[str, str]]:
+    if not os.path.exists(RELATION_USERS_FILE):
+        return {
+            nick: {"celownik": USER_DATIVE_FORMS[nick], "narzednik": USER_INSTRUMENTAL_FORMS[nick]}
+            for nick in ALLOWED_USERS
+        }
+    with open(RELATION_USERS_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def save_relation_users(users: Dict[str, Dict[str, str]]) -> None:
+    Path(RELATION_USERS_FILE).parent.mkdir(parents=True, exist_ok=True)
+    with open(RELATION_USERS_FILE, "w", encoding="utf-8") as f:
+        json.dump(users, f, indent=4, ensure_ascii=False)
+
+
 def normalize_relation(value: str) -> Optional[str]:
     cleaned = value.strip().lower().replace("_", " ").replace("-", " ")
     cleaned = " ".join(cleaned.split())
@@ -157,11 +173,11 @@ def relation_label_singular(value: Optional[str]) -> str:
 
 
 def inflect_second_nick(alias: str) -> str:
-    return USER_DATIVE_FORMS.get(alias, alias)
+    return load_relation_users().get(alias, {}).get("celownik", alias)
 
 
 def inflect_second_nick_with_z(alias: str) -> str:
-    return USER_INSTRUMENTAL_FORMS.get(alias, alias)
+    return load_relation_users().get(alias, {}).get("narzednik", alias)
 
 
 def build_relation_image_file(relation_key: str) -> Optional[discord.File]:
@@ -306,10 +322,11 @@ def parse_iso_datetime(value: str) -> datetime:
 
 
 def resolve_actor_nick(interaction: discord.Interaction) -> Optional[str]:
+    users = load_relation_users()
     actor_id = getattr(interaction.user, "id", None)
     if isinstance(actor_id, int):
         alias = USER_ID_TO_ALIAS.get(actor_id)
-        if alias:
+        if alias in users:
             return alias
 
     candidates = [
@@ -320,7 +337,7 @@ def resolve_actor_nick(interaction: discord.Interaction) -> Optional[str]:
 
     for candidate in candidates:
         normalized = normalize_nick(candidate)
-        if normalized in ALLOWED_USERS_SET:
+        if normalized in users:
             return normalized
 
     return None
@@ -340,19 +357,23 @@ def parse_user_id_from_text(value: str) -> Optional[int]:
 
 
 def resolve_alias_from_input(interaction: discord.Interaction, value: str) -> Optional[str]:
+    users = load_relation_users()
     normalized = normalize_nick(value)
-    if normalized in ALLOWED_USERS_SET:
+    if normalized in users:
         return normalized
 
     parsed_id = parse_user_id_from_text(value)
     if parsed_id is not None:
-        return USER_ID_TO_ALIAS.get(parsed_id)
+        alias = USER_ID_TO_ALIAS.get(parsed_id)
+        return alias if alias in users else None
 
     guild = interaction.guild
     if guild is None:
         return None
 
     for user_id, alias in USER_ID_TO_ALIAS.items():
+        if alias not in users:
+            continue
         member = guild.get_member(user_id)
         if member is None:
             continue
@@ -472,7 +493,7 @@ async def nick_autocomplete(
     current_lower = current.strip().lower()
     choices = [
         app_commands.Choice(name=user, value=user)
-        for user in ALLOWED_USERS
+        for user in load_relation_users()
         if current_lower in user.lower()
     ]
     return choices[:25]
@@ -489,6 +510,61 @@ async def relation_autocomplete(
         if current_lower in option.lower()
     ]
     return choices[:25]
+
+
+def register_relations_config_commands(group: app_commands.Group) -> None:
+    @group.command(name="dodaj", description="Dodaje użytkownika i odmiany jego nicku do relacji")
+    @app_commands.describe(
+        nick="Podstawowy nick: np. jaro w zdaniu „jaro trzyma zgodę z kuzią”",
+        celownik="Komu? Np. jarowi w zdaniu „kuzia wypowiedział kosę jarowi”",
+        narzednik="Z kim? Np. jarem w zdaniu „kuzia trzyma zgodę z jarem”",
+    )
+    async def dodaj(
+        interaction: discord.Interaction, nick: str, celownik: str, narzednik: str
+    ):
+        nick = normalize_nick(nick)
+        celownik, narzednik = celownik.strip(), narzednik.strip()
+        if (not nick or nick in (".", "..") or any(char in nick for char in "/\\|")
+                or not celownik or not narzednik or any(len(value) > 100 for value in (nick, celownik, narzednik))):
+            await interaction.response.send_message(
+                "Podaj nick i obie odmiany (1–100 znaków). Nick nie może zawierać /, \\ ani |.", ephemeral=True
+            )
+            return
+        users = load_relation_users()
+        if nick in users:
+            await interaction.response.send_message("Ten nick jest już na liście relacji.", ephemeral=True)
+            return
+        users[nick] = {"celownik": celownik, "narzednik": narzednik}
+        save_relation_users(users)
+        await interaction.response.send_message(f"Dodano do relacji: **{nick}** (komu: {celownik}, z kim: {narzednik}).", ephemeral=True)
+
+    @group.command(name="usun", description="Usuwa użytkownika z listy i wszystkie jego relacje")
+    @app_commands.describe(nick="Nick użytkownika z listy relacji, np. jaro")
+    @app_commands.autocomplete(nick=nick_autocomplete)
+    async def usun(interaction: discord.Interaction, nick: str):
+        nick = normalize_nick(nick)
+        users = load_relation_users()
+        if nick not in users:
+            await interaction.response.send_message("Tego nicku nie ma na liście relacji.", ephemeral=True)
+            return
+        data = load_relations()
+        data.pop(nick, None)
+        for other in list(data):
+            data[other].pop(nick, None)
+            if not data[other]:
+                del data[other]
+        temp_data = load_temp_relations()
+        for pair_key, record in list(temp_data.items()):
+            if nick in (record.get("user_a"), record.get("user_b")):
+                task = ACTIVE_TEMP_TASKS.pop(pair_key, None)
+                if task:
+                    task.cancel()
+                del temp_data[pair_key]
+        save_relations(data)
+        save_temp_relations(temp_data)
+        del users[nick]
+        save_relation_users(users)
+        await interaction.response.send_message(f"Usunięto **{nick}** z listy i wyczyszczono jego relacje.", ephemeral=True)
 
 
 async def setup_relations_commands(client: discord.Client, tree: app_commands.CommandTree, guild_id: int = None):
@@ -511,7 +587,7 @@ async def setup_relations_commands(client: discord.Client, tree: app_commands.Co
         user = resolve_alias_from_input(interaction, nick)
         if user is None:
             await interaction.response.send_message(
-                "Niepoprawny nick. Dozwoleni użytkownicy: " + ", ".join(ALLOWED_USERS),
+                "Niepoprawny nick. Dozwoleni użytkownicy: " + ", ".join(load_relation_users()),
                 ephemeral=True,
             )
             return
@@ -578,7 +654,7 @@ async def setup_relations_commands(client: discord.Client, tree: app_commands.Co
         actor = resolve_actor_nick(interaction)
         if actor is None:
             await interaction.response.send_message(
-                "Nie moge przypisac Twojego nicku do listy relacji. Ustaw nick zgodny z: " + ", ".join(ALLOWED_USERS),
+                "Nie moge przypisac Twojego nicku do listy relacji. Ustaw nick zgodny z: " + ", ".join(load_relation_users()),
                 ephemeral=True,
             )
             return
@@ -586,7 +662,7 @@ async def setup_relations_commands(client: discord.Client, tree: app_commands.Co
         target = resolve_alias_from_input(interaction, nick)
         if target is None:
             await interaction.response.send_message(
-                "Niepoprawny nick. Dozwoleni użytkownicy: " + ", ".join(ALLOWED_USERS),
+                "Niepoprawny nick. Dozwoleni użytkownicy: " + ", ".join(load_relation_users()),
                 ephemeral=True,
             )
             return
@@ -651,7 +727,7 @@ async def setup_relations_commands(client: discord.Client, tree: app_commands.Co
         user_a = resolve_actor_nick(interaction)
         if user_a is None:
             await interaction.response.send_message(
-                "Nie moge przypisac Twojego nicku do listy relacji. Ustaw nick zgodny z: " + ", ".join(ALLOWED_USERS),
+                "Nie moge przypisac Twojego nicku do listy relacji. Ustaw nick zgodny z: " + ", ".join(load_relation_users()),
                 ephemeral=True,
             )
             return
@@ -661,7 +737,7 @@ async def setup_relations_commands(client: discord.Client, tree: app_commands.Co
 
         if user_b is None:
             await interaction.response.send_message(
-                "Niepoprawny nick. Dozwoleni użytkownicy: " + ", ".join(ALLOWED_USERS),
+                "Niepoprawny nick. Dozwoleni użytkownicy: " + ", ".join(load_relation_users()),
                 ephemeral=True,
             )
             return
