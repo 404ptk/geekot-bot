@@ -35,15 +35,6 @@ async def setup_help_commands(client: discord.Client, tree: app_commands.Command
         embed.add_field(name="🎯 **CS2**", value="Przeglądaj dostępne szybkie komendy dla CS2:\n"
             "`/instant [mapa]`", inline=False)
         
-        embed.add_field(name="⚽ **Piłka nożna**", value=
-            "Statystyki lig i klubów:\n"
-            "`/tabela [liga]` - Aktualna tabela wybranej ligi\n"
-            "`/liga [liga] [statystyka]` - Statystyki ligi (np. top strzelcy)\n"
-            "`/ostatniemecze [liga] [klub]` - Ostatnie 10 meczów wybranego klubu\n"
-            "`/najblizszemecze [liga] [klub]` - Nadchodzące mecze wybranego klubu\n"
-            "`/sklad [liga] [klub]` - Skład i informacje o drużynie",
-            inline=False)
-        
         embed.add_field(name="🔥 **Wyzwania CS2**",
             value="Dodawaj i losuj wyzwania do wykonania w grze CS2:\n"
             "`/wyzwania [lista/dodaj/losuj/pomoc/usun]`", inline=False)

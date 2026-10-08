@@ -1,12 +1,12 @@
 # Geekot Bot
 
-A Discord bot for a private community, with slash commands for CS2 stats, activity and stream tracking, football, gaming coordination, and community tools. It runs as a single process and stores configuration and state in local JSON/TXT files.
+A Discord bot for a private community, with slash commands for CS2 stats, activity tracking, gaming coordination, and community tools. It runs as a single process and stores configuration and state in local JSON/TXT files.
 
 ## Tech and integrations
 
 - Python 3.10+ and `discord.py` 2.x; slash commands and scheduled background tasks.
 - `requests` and `aiohttp` for HTTP, Pillow for image processing.
-- Faceit, Leetify, Football-Data.org and YouTube Data API. Some features also read public Steam/GitHub feeds and job listing sites.
+- Faceit, Leetify and YouTube Data API. Some features also read public Steam/GitHub feeds and job listing sites.
 - No in-house HTTP API or database. Local files under `txt/` hold secrets, settings, and runtime data.
 
 ## Setup
@@ -29,9 +29,8 @@ Create these files in `txt/`. Each should contain only the secret value, without
 | `discord_token.txt` | Required to start the bot |
 | `faceit_api.txt` | Faceit commands |
 | `leetify_api.txt` | Leetify commands |
-| `football_data_api.txt` | Football commands |
 
-Optional features may need additional files, including `football_data_api.txt`, `youtube_api_key.txt`, `youtube_shorts.json`, `google_service_account.json`, and `drive_daily.json`. Some runtime data files are created automatically. Features that need missing optional credentials will not work.
+Optional features may need additional files, including `youtube_api_key.txt`, `youtube_shorts.json`, `google_service_account.json`, and `drive_daily.json`. Some runtime data files are created automatically. Features that need missing optional credentials will not work.
 
 ```bash
 python main.py
