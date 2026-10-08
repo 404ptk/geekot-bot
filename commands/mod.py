@@ -25,8 +25,10 @@ def save_channel_privacy(privacy_data):
         os.makedirs(os.path.dirname(CHANNEL_PRIVACY_FILE) or '.', exist_ok=True)
         with open(CHANNEL_PRIVACY_FILE, 'w', encoding='utf-8') as f:
             json.dump(privacy_data, f, indent=4, ensure_ascii=False)
+        return True
     except Exception as e:
         print(f"Błąd przy zapisywaniu ustawień prywatności kanałów: {e}")
+        return False
 
 
 def extract_channel_privacy(channel: discord.TextChannel) -> dict:
@@ -35,6 +37,8 @@ def extract_channel_privacy(channel: discord.TextChannel) -> dict:
         "channel_id": channel.id,
         "channel_name": channel.name,
         "saved_at": datetime.now().isoformat(),
+        "category_id": channel.category_id,
+        "permissions_synced": channel.permissions_synced,
         "permissions_overwrites": {},
         "topic": channel.topic,
         "slowmode_delay": channel.slowmode_delay,
@@ -80,6 +84,12 @@ async def setup_mod_commands(client: discord.Client, tree: discord.app_commands.
             return
 
         channel = kanal or interaction.channel
+        if not isinstance(channel, discord.TextChannel):
+            await interaction.response.send_message(
+                "Ta komenda działa tylko na kanałach tekstowych.", ephemeral=True
+            )
+            return
+
         category = discord.utils.get(interaction.guild.categories, id=ARCHIVE_CATEGORY_ID)
         if category is None:
             await interaction.response.send_message(
@@ -92,10 +102,30 @@ async def setup_mod_commands(client: discord.Client, tree: discord.app_commands.
         privacy_data = load_channel_privacy()
         channel_settings = extract_channel_privacy(channel)
         privacy_data[str(channel.id)] = channel_settings
-        save_channel_privacy(privacy_data)
+        if not save_channel_privacy(privacy_data):
+            await interaction.response.send_message(
+                "Nie udało się zapisać ustawień prywatności. Kanał nie został zamknięty.",
+                ephemeral=True,
+            )
+            return
 
-        await channel.edit(category=category)
-        await channel.set_permissions(interaction.guild.default_role, send_messages=False)
+        # Preserve all visibility rules, including overwrites synced from the
+        # original category. Keyword-only set_permissions would replace the
+        # entire @everyone overwrite and remove its view_channel deny.
+        overwrites = channel.overwrites
+        for overwrite in overwrites.values():
+            overwrite.send_messages = False
+            overwrite.send_messages_in_threads = False
+            overwrite.create_public_threads = False
+            overwrite.create_private_threads = False
+        everyone = interaction.guild.default_role
+        everyone_overwrite = overwrites.get(everyone, discord.PermissionOverwrite())
+        everyone_overwrite.send_messages = False
+        everyone_overwrite.send_messages_in_threads = False
+        everyone_overwrite.create_public_threads = False
+        everyone_overwrite.create_private_threads = False
+        overwrites[everyone] = everyone_overwrite
+        await channel.edit(category=category, sync_permissions=False, overwrites=overwrites)
         await interaction.response.send_message(
             f"Kanał {channel.mention} został przeniesiony do kategorii **{category.name}** i zablokowano możliwość pisania.\n✅ Ustawienia prywatności kanału zostały zapisane."
         )
