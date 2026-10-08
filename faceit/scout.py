@@ -68,7 +68,7 @@ def fetch_match_data(match_id: str) -> dict:
     # FACEIT player endpoint used by /last. Keep this optional: the match view
     # still works if the profile lookup is unavailable.
     try:
-        from faceit.faceit_utils import get_faceit_player_data
+        from faceit_utils import get_faceit_player_data
 
         for player in roster1 + roster2:
             nickname = player.get("nickname")
