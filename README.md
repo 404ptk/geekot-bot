@@ -6,7 +6,7 @@ A Discord bot for a private community, with slash commands for CS2 stats, activi
 
 - Python 3.10+ and `discord.py` 2.x; slash commands and scheduled background tasks.
 - `requests` and `aiohttp` for HTTP, Pillow for image processing.
-- Faceit, Leetify, Twitch, Kick, Football-Data.org, YouTube RSS and YouTube Data API. Some features also read public Steam/GitHub feeds and job listing sites.
+- Faceit, Leetify, Football-Data.org, YouTube RSS and YouTube Data API. Some features also read public Steam/GitHub feeds and job listing sites.
 - No in-house HTTP API or database. Local files under `txt/` hold secrets, settings, and runtime data.
 
 ## Setup
@@ -30,8 +30,6 @@ Create these files in `txt/`. Each should contain only the secret value, without
 | `faceit_api.txt` | Faceit commands |
 | `leetify_api.txt` | Leetify commands |
 | `football_data_api.txt` | Football commands |
-| `twitch_client_id.txt`, `twitch_client_secret.txt` | Twitch status |
-| `kick_client_id.txt`, `kick_client_secret.txt` | Kick status |
 
 Optional features may need additional files, including `football_data_api.txt`, `youtube_api_key.txt`, `youtube_shorts.json`, `youtube_watch.json`, `google_service_account.json`, and `drive_daily.json`. Some runtime data files are created automatically. Features that need missing optional credentials will not work.
 

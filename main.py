@@ -9,17 +9,14 @@ from datetime import datetime
 import sys
 import threading
 
-from twitch_utils import *
 from masny_utils import *
 from faceit_utils import *
-from kick_utils import *
 from commands import games as games_module
 from commands import fun as fun_module
 from commands import help as help_module
 from commands import excuses as excuses_module
 from commands import instants
 from commands import challenges as challenges_module
-from commands import twitch_kick
 from commands import mod as mod_module
 from commands import minecraft
 import faceit_utils
@@ -205,7 +202,6 @@ async def on_ready():
         ("Minecraft commands", minecraft.setup_minecraft_commands(client, client.tree, guild_id=GUILD_ID)),
         ("Help commands", help_module.setup_help_commands(client, client.tree, guild_id=GUILD_ID)),
         ("Instants commands", instants.setup_instants_commands(client, client.tree, guild_id=GUILD_ID)),
-        ("Twitch/Kick commands", twitch_kick.setup_twitch_kick_commands(client, client.tree, guild_id=551503797067710504)),
         ("Challenges commands", challenges_module.setup_challenges_commands(client, client.tree, guild_id=GUILD_ID)),
         ("Mod commands", mod_module.setup_mod_commands(client, client.tree, guild_id=GUILD_ID)),
         ("Faceit commands", faceit_utils.setup_faceit_commands(client, client.tree, guild_id=GUILD_ID)),

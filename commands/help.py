@@ -32,9 +32,6 @@ async def setup_help_commands(client: discord.Client, tree: app_commands.Command
         embed.add_field(name="🚀 **Spawn Masnego**", value="Spraw aby Masny był online:\n"
             "`/spawn (opcjonalnie: [godzina])`", inline=False)
         
-        embed.add_field(name="🎥 **Stan streamera**", value="Sprawdź co robi dany streamer:\n"
-            "`/stan [kick/twitch] [kanał]`", inline=False)
-        
         embed.add_field(name="🎯 **CS2**", value="Przeglądaj dostępne szybkie komendy dla CS2:\n"
             "`/instant [mapa]`", inline=False)
         
