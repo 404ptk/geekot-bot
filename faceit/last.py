@@ -1,9 +1,26 @@
 import discord
 from discord import app_commands
 import requests
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from urllib.parse import quote
 from faceit.common import get_country_flag_badge, get_faceit_level_badge, get_guild_emoji_text
 from config.conf_faceit_live_settings import load_config
+
+
+def format_match_datetime(value):
+    if not value:
+        return None
+    try:
+        timestamp = float(value)
+        if timestamp > 100_000_000_000:
+            timestamp /= 1000
+        date = datetime.fromtimestamp(timestamp, ZoneInfo('Europe/Warsaw'))
+        months = ('styczeń', 'luty', 'marzec', 'kwiecień', 'maj', 'czerwiec',
+                  'lipiec', 'sierpień', 'wrzesień', 'październik', 'listopad', 'grudzień')
+        return f'{date.day} {months[date.month - 1]} {date.year} - {date:%H:%M}'
+    except (TypeError, ValueError, OverflowError, OSError):
+        return None
 
 
 async def get_last_match_stats(nickname, guild=None):
@@ -59,6 +76,7 @@ async def get_last_match_stats(nickname, guild=None):
     url = f"https://open.faceit.com/data/v4/matches/{match_id}"
     response = requests.get(url, headers={"Authorization": f"Bearer {fu.FACEIT_API_KEY}"})
     ratings = {}
+    match_general = {}
     if response.status_code == 200:
         match_general = response.json()
         for faction in ["faction1", "faction2"]:
@@ -168,7 +186,15 @@ async def get_last_match_stats(nickname, guild=None):
             desc += f" | {score_display}\n"
     faceit_logo = get_guild_emoji_text(guild, "faceitlogo")
     title_prefix = f"{faceit_logo} " if faceit_logo else ""
-    header_text = f"# {title_prefix} Ostatni mecz {player_profile_link}\n{desc}"
+    header_text = f"# {title_prefix} Ostatni mecz {player_profile_link}\n{desc.rstrip()}"
+    match_date = format_match_datetime(match_general.get('started_at'))
+    if match_date:
+        header_text += f"\n-# Data meczu: {match_date}"
+    else:
+        match_date = (format_match_datetime(match_general.get('finished_at'))
+                      or format_match_datetime(last_stats.get('Match Finished At')))
+        if match_date:
+            header_text += f"\n-# Zakończono: {match_date}"
     if team_rating_str:
         mmr_subtext = "\n".join(
             f"-# {line}" for line in team_rating_str.splitlines() if line.strip()
