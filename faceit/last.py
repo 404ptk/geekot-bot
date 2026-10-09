@@ -8,7 +8,7 @@ from faceit.common import get_country_flag_badge, get_faceit_level_badge, get_gu
 from config.conf_faceit_live_settings import load_config
 
 
-def format_match_datetime(value):
+def format_match_datetime(value, now=None):
     if not value:
         return None
     try:
@@ -18,7 +18,13 @@ def format_match_datetime(value):
         date = datetime.fromtimestamp(timestamp, ZoneInfo('Europe/Warsaw'))
         months = ('styczeń', 'luty', 'marzec', 'kwiecień', 'maj', 'czerwiec',
                   'lipiec', 'sierpień', 'wrzesień', 'październik', 'listopad', 'grudzień')
-        return f'{date.day} {months[date.month - 1]} {date.year} - {date:%H:%M}'
+        text = f'{date.day} {months[date.month - 1]} {date.year} - {date:%H:%M}'
+        current = now if now is not None else datetime.now(ZoneInfo('Europe/Warsaw'))
+        elapsed_seconds = current.timestamp() - date.timestamp()
+        if elapsed_seconds > 7 * 24 * 60 * 60:
+            days = int(elapsed_seconds // (24 * 60 * 60))
+            text += f' ({days} dni temu)'
+        return text
     except (TypeError, ValueError, OverflowError, OSError):
         return None
 
