@@ -1,6 +1,6 @@
 """Scheduled FACEIT summary configuration screens."""
 import discord
-from config.conf_panel import ConfigView
+from config.conf_panel import ConfigView, PanelContent
 from config import conf_faceit_weekly_settings as weekly_config
 
 
@@ -11,16 +11,16 @@ class FaceitWeeklyView(ConfigView):
         for option in self.frequency.options:
             option.default = int(option.value) == interval
 
-    def embed(self, notice=None):
+    def content(self, notice=None):
         config = weekly_config.load_config()
-        embed = discord.Embed(title='⚙️ Faceit → Tygodniówka', color=discord.Color.orange(),
+        content = PanelContent(title='⚙️ Faceit → Tygodniówka',
                               description='Automatyczna publikacja podsumowania statystyk Faceit.')
-        embed.add_field(name='Częstotliwość', value='Raz na tydzień' if config['interval_weeks'] == 1 else 'Co dwa tygodnie', inline=False)
-        embed.add_field(name='Kanał wysyłki', value=f"<#{config['channel_id']}>", inline=False)
+        content.add_field(name='Częstotliwość', value='Raz na tydzień' if config['interval_weeks'] == 1 else 'Co dwa tygodnie')
+        content.add_field(name='Kanał wysyłki', value=f"<#{config['channel_id']}>", action='channel')
         if notice:
-            embed.add_field(name='Wynik', value=notice, inline=False)
-        embed.set_footer(text='Wysyłka w poniedziałek. Zmiany działają bez restartu; odstęp liczony od ostatniej publikacji.')
-        return embed
+            content.add_field(name='Wynik', value=notice)
+        content.set_footer(text='Wysyłka w poniedziałek. Zmiany działają bez restartu; odstęp liczony od ostatniej publikacji.')
+        return content
 
     @discord.ui.select(placeholder='Wybierz częstotliwość…', row=0, options=[
         discord.SelectOption(label='Raz na tydzień', value='1'),
@@ -29,23 +29,23 @@ class FaceitWeeklyView(ConfigView):
     async def frequency(self, interaction, select):
         weekly_config.update_config(interval_weeks=int(select.values[0]))
         view = FaceitWeeklyView(self.owner_id)
-        await self.show(interaction, view, view.embed('Zapisano częstotliwość wysyłki.'))
+        await self.show(interaction, view, view.content('Zapisano częstotliwość wysyłki.'))
 
     @discord.ui.button(label='Wybierz kanał', style=discord.ButtonStyle.primary, row=1)
     async def channel(self, interaction, button):
         view = WeeklyChannelView(self.owner_id)
-        await self.show(interaction, view, view.embed())
+        await self.show(interaction, view, view.content())
 
     @discord.ui.button(label='Wróć do Faceit', row=2)
     async def back(self, interaction, button):
         from config.conf_faceit import FaceitView
         view = FaceitView(self.owner_id)
-        await self.show(interaction, view, view.embed())
+        await self.show(interaction, view, view.content())
 
 
 class WeeklyChannelView(ConfigView):
-    def embed(self):
-        return discord.Embed(title='⚙️ Tygodniówka → Kanał wysyłki', color=discord.Color.orange(),
+    def content(self):
+        return PanelContent(title='⚙️ Tygodniówka → Kanał wysyłki',
                              description='Wybierz kanał automatycznych podsumowań Faceit.')
 
     @discord.ui.select(cls=discord.ui.ChannelSelect,
@@ -63,9 +63,9 @@ class WeeklyChannelView(ConfigView):
             return
         weekly_config.update_config(channel_id=channel.id)
         view = FaceitWeeklyView(self.owner_id)
-        await self.show(interaction, view, view.embed(f'Zapisano kanał <#{channel.id}>.'))
+        await self.show(interaction, view, view.content(f'Zapisano kanał <#{channel.id}>.'))
 
     @discord.ui.button(label='Wróć do tygodniówki', row=1)
     async def back(self, interaction, button):
         view = FaceitWeeklyView(self.owner_id)
-        await self.show(interaction, view, view.embed())
+        await self.show(interaction, view, view.content())

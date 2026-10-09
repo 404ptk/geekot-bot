@@ -1,6 +1,6 @@
 """Administrator-only editor for global and per-command role thresholds."""
 import discord
-from config.conf_panel import ConfigView
+from config.conf_panel import ConfigView, PanelContent
 from config import conf_permissions_settings as permissions
 
 
@@ -20,7 +20,7 @@ class CommandSelect(discord.ui.Select):
 
     async def callback(self, interaction):
         view = PermissionRoleView(self.view.owner_id, interaction.guild, self.values[0])
-        await self.view.show(interaction, view, view.embed())
+        await self.view.show(interaction, view, view.content())
 
 
 class PermissionsView(ConfigView):
@@ -29,31 +29,31 @@ class PermissionsView(ConfigView):
         self.guild = guild
         self.add_item(CommandSelect())
 
-    def embed(self, notice=None):
+    def content(self, notice=None):
         config = permissions.load_config(self.guild.id)
-        embed = discord.Embed(title='⚙️ Permisje', color=discord.Color.blurple(), description=(
+        content = PanelContent(title='⚙️ Permisje', description=(
             'Wybrana ranga i wszystkie role wyżej w hierarchii otrzymują dostęp. Administrator zawsze ma dostęp.\n'
             'Ustawienie komendy zastępuje rangę globalną. Domyślnie komendy korzystają z ustawienia globalnego.'))
-        embed.add_field(name='Globalna ranga moderatora', value=role_label(self.guild, config['moderator_role_id']), inline=False)
+        content.add_field(name='Globalna ranga moderatora', value=role_label(self.guild, config['moderator_role_id']), action='global_role')
         for command in permissions.MODERATOR_COMMANDS:
             inherited = command not in config['commands']
             role_id = config['commands'].get(command, config['moderator_role_id'])
-            embed.add_field(name=f'/{command}', value=('Globalnie: ' if inherited else 'Osobno: ') + role_label(self.guild, role_id), inline=False)
+            content.add_field(name=f'/{command}', value=('Globalnie: ' if inherited else 'Osobno: ') + role_label(self.guild, role_id))
         if notice:
-            embed.add_field(name='Wynik', value=notice, inline=False)
-        embed.set_footer(text='Zmiany działają bez restartu.')
-        return embed
+            content.add_field(name='Wynik', value=notice)
+        content.set_footer(text='Zmiany działają bez restartu.')
+        return content
 
     @discord.ui.button(label='Globalna ranga moderatora', style=discord.ButtonStyle.primary, row=0)
     async def global_role(self, interaction, button):
         view = PermissionRoleView(self.owner_id, interaction.guild)
-        await self.show(interaction, view, view.embed())
+        await self.show(interaction, view, view.content())
 
     @discord.ui.button(label='Wróć do konfiguracji', row=2)
     async def back(self, interaction, button):
         from config.conf_menu import ConfigHomeView
         view = ConfigHomeView(self.owner_id)
-        await self.show(interaction, view, view.embed())
+        await self.show(interaction, view, view.content())
 
 
 class PermissionRoleView(ConfigView):
@@ -63,14 +63,14 @@ class PermissionRoleView(ConfigView):
         self.command = command
         self.inherit.disabled = command is None
 
-    def embed(self):
+    def content(self):
         target = f'/{self.command}' if self.command else 'Globalna ranga moderatora'
-        return discord.Embed(title=f'⚙️ Permisje → {target}', color=discord.Color.blurple(),
+        return PanelContent(title=f'⚙️ Permisje → {target}',
                              description='Wybierz minimalną rangę. Dostęp uzyskają także role wyżej w hierarchii serwera.')
 
     async def finish(self, interaction, notice):
         view = PermissionsView(self.owner_id, interaction.guild)
-        await self.show(interaction, view, view.embed(notice))
+        await self.show(interaction, view, view.content(notice))
 
     @discord.ui.select(cls=discord.ui.RoleSelect, placeholder='Wybierz minimalną rangę…', row=0)
     async def role(self, interaction, select):

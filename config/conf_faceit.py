@@ -1,7 +1,7 @@
 """FACEIT LIVE screens for the shared /config panel."""
 import discord
 
-from config.conf_panel import ConfigView
+from config.conf_panel import ConfigView, PanelContent
 from config import conf_faceit_live_settings as live_config
 from config.conf_faceit_weekly import FaceitWeeklyView
 
@@ -17,7 +17,7 @@ class FaceitSectionSelect(discord.ui.Select):
         factory = next(factory for key, title, description, factory in FACEIT_SECTIONS
                        if key == self.values[0])
         view = factory(self.view.owner_id)
-        await self.view.show(interaction, view, view.embed())
+        await self.view.show(interaction, view, view.content())
 
 
 class FaceitView(ConfigView):
@@ -25,33 +25,31 @@ class FaceitView(ConfigView):
         super().__init__(owner_id)
         self.add_item(FaceitSectionSelect())
 
-    def embed(self):
-        embed = discord.Embed(title='⚙️ Faceit', description='Wybierz funkcję, którą chcesz skonfigurować.',
-                              color=discord.Color.orange())
+    def content(self):
+        content = PanelContent(title='⚙️ Faceit', description='Wybierz funkcję, którą chcesz skonfigurować.')
         for key, title, description, factory in FACEIT_SECTIONS:
-            embed.add_field(name=title, value=description, inline=False)
-        return embed
+            content.add_field(name=title, value=description)
+        return content
 
     @discord.ui.button(label='Menu główne', row=1)
     async def home(self, interaction, button):
         from config.conf_menu import ConfigHomeView
         view = ConfigHomeView(self.owner_id)
-        await self.show(interaction, view, view.embed())
+        await self.show(interaction, view, view.content())
 
 
 class FaceitLiveView(ConfigView):
-    def embed(self, notice=None):
+    def content(self, notice=None):
         config = live_config.load_config()
         names = ', '.join(discord.utils.escape_markdown(nick) for nick in config['players']) or 'Lista jest pusta.'
-        embed = discord.Embed(title='⚙️ Faceit → LIVE',
-                              description='Gracze widoczni na grafice Faceit LIVE i kanał jej publikacji.',
-                              color=discord.Color.orange())
-        embed.add_field(name=f"Śledzeni gracze ({len(config['players'])})", value=names[:1020], inline=False)
-        embed.add_field(name='Kanał wiadomości', value=f"<#{config['channel_id']}>", inline=False)
+        content = PanelContent(title='⚙️ Faceit → LIVE',
+                              description='Gracze widoczni na grafice Faceit LIVE i kanał jej publikacji.')
+        content.add_field(name=f"Śledzeni gracze ({len(config['players'])})", value=names[:1020])
+        content.add_field(name='Kanał wiadomości', value=f"<#{config['channel_id']}>", action='channel')
         if notice:
-            embed.add_field(name='Wynik', value=notice, inline=False)
-        embed.set_footer(text='Zmiany zostaną uwzględnione przy kolejnym odświeżeniu, najpóźniej za około 5 minut.')
-        return embed
+            content.add_field(name='Wynik', value=notice)
+        content.set_footer(text='Zmiany zostaną uwzględnione przy kolejnym odświeżeniu, najpóźniej za około 5 minut.')
+        return content
 
     @discord.ui.button(label='Dodaj gracza', style=discord.ButtonStyle.success)
     async def add(self, interaction, button):
@@ -60,17 +58,17 @@ class FaceitLiveView(ConfigView):
     @discord.ui.button(label='Usuń gracza', style=discord.ButtonStyle.danger)
     async def remove(self, interaction, button):
         view = RemovePlayerView(self.owner_id)
-        await self.show(interaction, view, view.embed())
+        await self.show(interaction, view, view.content())
 
     @discord.ui.button(label='Wybierz kanał', style=discord.ButtonStyle.primary)
     async def channel(self, interaction, button):
         view = ChannelView(self.owner_id)
-        await self.show(interaction, view, view.embed())
+        await self.show(interaction, view, view.content())
 
     @discord.ui.button(label='Wróć do Faceit', row=1)
     async def home(self, interaction, button):
         view = FaceitView(self.owner_id)
-        await self.show(interaction, view, view.embed())
+        await self.show(interaction, view, view.content())
 
 
 class AddPlayerModal(discord.ui.Modal, title='Dodaj gracza do Faceit LIVE'):
@@ -91,7 +89,7 @@ class AddPlayerModal(discord.ui.Modal, title='Dodaj gracza do Faceit LIVE'):
             await interaction.response.send_message(str(error), ephemeral=True)
             return
         view = FaceitLiveView(self.panel.owner_id)
-        await self.panel.show(interaction, view, view.embed(f'Dodano **{discord.utils.escape_markdown(nickname)}**.'))
+        await self.panel.show(interaction, view, view.content(f'Dodano **{discord.utils.escape_markdown(nickname)}**.'))
 
     async def on_error(self, interaction, error):
         await self.panel.on_error(interaction, error, None)
@@ -105,7 +103,7 @@ class PlayerSelect(discord.ui.Select):
 
     async def callback(self, interaction):
         view = RemovePlayerView(self.view.owner_id, self.view.page, self.values[0])
-        await self.view.show(interaction, view, view.embed())
+        await self.view.show(interaction, view, view.content())
 
 
 class RemovePlayerView(ConfigView):
@@ -121,25 +119,25 @@ class RemovePlayerView(ConfigView):
         self.next_page.disabled = self.page == self.pages - 1
         self.confirm.disabled = self.selected is None
 
-    def embed(self):
+    def content(self):
         text = 'Wybierz gracza, a następnie kliknij „Usuń”.'
         if not live_config.load_config()['players']:
             text = 'Lista śledzonych graczy jest pusta.'
         if self.selected:
             text += f'\n\nWybrano: **{discord.utils.escape_markdown(self.selected)}**'
-        embed = discord.Embed(title='⚙️ Faceit LIVE → Usuń gracza', description=text, color=discord.Color.orange())
-        embed.set_footer(text=f'Strona {self.page + 1}/{self.pages}')
-        return embed
+        content = PanelContent(title='⚙️ Faceit LIVE → Usuń gracza', description=text)
+        content.set_footer(text=f'Strona {self.page + 1}/{self.pages}')
+        return content
 
     @discord.ui.button(label='Poprzednia strona', row=1)
     async def previous(self, interaction, button):
         view = RemovePlayerView(self.owner_id, self.page - 1)
-        await self.show(interaction, view, view.embed())
+        await self.show(interaction, view, view.content())
 
     @discord.ui.button(label='Następna strona', row=1)
     async def next_page(self, interaction, button):
         view = RemovePlayerView(self.owner_id, self.page + 1)
-        await self.show(interaction, view, view.embed())
+        await self.show(interaction, view, view.content())
 
     @discord.ui.button(label='Usuń', style=discord.ButtonStyle.danger, row=2)
     async def confirm(self, interaction, button):
@@ -149,12 +147,12 @@ class RemovePlayerView(ConfigView):
         except ValueError as error:
             notice = str(error)
         view = FaceitLiveView(self.owner_id)
-        await self.show(interaction, view, view.embed(notice))
+        await self.show(interaction, view, view.content(notice))
 
     @discord.ui.button(label='Wróć do Faceit LIVE', row=2)
     async def back(self, interaction, button):
         view = FaceitLiveView(self.owner_id)
-        await self.show(interaction, view, view.embed())
+        await self.show(interaction, view, view.content())
 
 
 # Register further Faceit configuration screens alongside LIVE.
@@ -165,10 +163,9 @@ FACEIT_SECTIONS = (
 
 
 class ChannelView(ConfigView):
-    def embed(self):
-        return discord.Embed(title='⚙️ Faceit LIVE → Kanał wiadomości',
-                             description='Wybierz kanał, na którym bot ma publikować grafikę Faceit LIVE.',
-                             color=discord.Color.orange())
+    def content(self):
+        return PanelContent(title='⚙️ Faceit LIVE → Kanał wiadomości',
+                             description='Wybierz kanał, na którym bot ma publikować grafikę Faceit LIVE.')
 
     @discord.ui.select(cls=discord.ui.ChannelSelect, channel_types=[discord.ChannelType.text, discord.ChannelType.news],
                        placeholder='Wybierz kanał wiadomości…')
@@ -187,9 +184,9 @@ class ChannelView(ConfigView):
             return
         live_config.set_channel(channel.id)
         view = FaceitLiveView(self.owner_id)
-        await self.show(interaction, view, view.embed(f'Zapisano kanał <#{channel.id}>.'))
+        await self.show(interaction, view, view.content(f'Zapisano kanał <#{channel.id}>.'))
 
     @discord.ui.button(label='Wróć do Faceit LIVE', row=1)
     async def back(self, interaction, button):
         view = FaceitLiveView(self.owner_id)
-        await self.show(interaction, view, view.embed())
+        await self.show(interaction, view, view.content())

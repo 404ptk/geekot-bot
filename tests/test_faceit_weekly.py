@@ -33,7 +33,7 @@ class WeeklyConfigTests(unittest.TestCase):
         async def check_panel():
             view = FaceitWeeklyView(1)
             self.assertEqual([option.value for option in view.frequency.options if option.default], ['2'])
-            self.assertEqual(view.embed().fields[1].value, '<#123>')
+            self.assertEqual(view.content().fields[1].value, '<#123>')
         asyncio.run(check_panel())
 
     def test_schedule_and_summary_period(self):

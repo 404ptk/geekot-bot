@@ -1,20 +1,20 @@
 """Relations configuration screens."""
 import discord
 
-from config.conf_panel import ConfigView
+from config.conf_panel import ConfigView, PanelContent
 from config import conf_relations_settings as relation_users
 
 
 class RelationsView(ConfigView):
-    def embed(self, notice=None):
+    def content(self, notice=None):
         users = relation_users.load_relation_users()
         names = ", ".join(discord.utils.escape_markdown(nick) for nick in users) or "Lista jest pusta."
-        embed = discord.Embed(title="⚙️ Relacje", color=discord.Color.blurple(),
+        content = PanelContent(title="⚙️ Relacje",
                               description="Zarządzaj użytkownikami dostępnymi w relacjach.")
-        embed.add_field(name=f"Użytkownicy ({len(users)})", value=names[:1020], inline=False)
+        content.add_field(name=f"Użytkownicy ({len(users)})", value=names[:1020])
         if notice:
-            embed.add_field(name="Wynik", value=notice, inline=False)
-        return embed
+            content.add_field(name="Wynik", value=notice)
+        return content
 
     @discord.ui.button(label="Dodaj użytkownika", style=discord.ButtonStyle.success)
     async def add(self, interaction, button):
@@ -23,13 +23,13 @@ class RelationsView(ConfigView):
     @discord.ui.button(label="Usuń użytkownika", style=discord.ButtonStyle.danger)
     async def remove(self, interaction, button):
         view = RemoveRelationUserView(self.owner_id)
-        await self.show(interaction, view, view.embed())
+        await self.show(interaction, view, view.content())
 
     @discord.ui.button(label="Menu główne", row=1)
     async def home(self, interaction, button):
         from config.conf_menu import ConfigHomeView
         view = ConfigHomeView(self.owner_id)
-        await self.show(interaction, view, view.embed())
+        await self.show(interaction, view, view.content())
 
 
 class AddRelationUserModal(discord.ui.Modal, title="Dodaj użytkownika do relacji"):
@@ -55,7 +55,7 @@ class AddRelationUserModal(discord.ui.Modal, title="Dodaj użytkownika do relacj
             await interaction.response.send_message(str(error), ephemeral=True)
             return
         view = RelationsView(self.panel.owner_id)
-        await self.panel.show(interaction, view, view.embed(f"Dodano **{discord.utils.escape_markdown(nick)}**."))
+        await self.panel.show(interaction, view, view.content(f"Dodano **{discord.utils.escape_markdown(nick)}**."))
 
     async def on_error(self, interaction, error):
         await self.panel.on_error(interaction, error, None)
@@ -69,7 +69,7 @@ class UserSelect(discord.ui.Select):
 
     async def callback(self, interaction):
         view = RemoveRelationUserView(self.view.owner_id, self.view.page, self.values[0])
-        await self.view.show(interaction, view, view.embed())
+        await self.view.show(interaction, view, view.content())
 
 
 class RemoveRelationUserView(ConfigView):
@@ -85,25 +85,25 @@ class RemoveRelationUserView(ConfigView):
         self.next_page.disabled = self.page == self.pages - 1
         self.confirm.disabled = self.selected is None
 
-    def embed(self):
+    def content(self):
         text = "Wybierz nick z listy, a następnie kliknij „Usuń”. Usunięte zostaną też wszystkie relacje i tymczasowe zgody tej osoby."
         if not relation_users.load_relation_users():
             text = "Lista użytkowników jest pusta."
         if self.selected:
             text += f"\n\nWybrano: **{discord.utils.escape_markdown(self.selected)}**"
-        embed = discord.Embed(title="⚙️ Relacje → Usuń użytkownika", description=text, color=discord.Color.orange())
-        embed.set_footer(text=f"Strona {self.page + 1}/{self.pages}")
-        return embed
+        content = PanelContent(title="⚙️ Relacje → Usuń użytkownika", description=text)
+        content.set_footer(text=f"Strona {self.page + 1}/{self.pages}")
+        return content
 
     @discord.ui.button(label="Poprzednia strona", row=1)
     async def previous(self, interaction, button):
         view = RemoveRelationUserView(self.owner_id, self.page - 1)
-        await self.show(interaction, view, view.embed())
+        await self.show(interaction, view, view.content())
 
     @discord.ui.button(label="Następna strona", row=1)
     async def next_page(self, interaction, button):
         view = RemoveRelationUserView(self.owner_id, self.page + 1)
-        await self.show(interaction, view, view.embed())
+        await self.show(interaction, view, view.content())
 
     @discord.ui.button(label="Usuń", style=discord.ButtonStyle.danger, row=2)
     async def confirm(self, interaction, button):
@@ -113,11 +113,11 @@ class RemoveRelationUserView(ConfigView):
         except ValueError as error:
             notice = str(error)
         view = RelationsView(self.owner_id)
-        await self.show(interaction, view, view.embed(notice))
+        await self.show(interaction, view, view.content(notice))
 
     @discord.ui.button(label="Wróć do relacji", row=2)
     async def back(self, interaction, button):
         view = RelationsView(self.owner_id)
-        await self.show(interaction, view, view.embed())
+        await self.show(interaction, view, view.content())
 
 

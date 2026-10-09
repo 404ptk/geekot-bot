@@ -6,7 +6,7 @@ import discord
 from discord import app_commands
 
 from commands import relations
-from config.conf_panel import ConfigView, require_administrator
+from config.conf_panel import ConfigView, PanelContent, require_administrator
 from config.conf_faceit import FaceitView
 from config.conf_relations import RelationsView
 from config.conf_steam import SteamView
@@ -34,7 +34,7 @@ class SectionSelect(discord.ui.Select):
         section = next(section for section in CONFIG_SECTIONS if section.key == self.values[0])
         view = (section.open_view(self.view.owner_id, interaction.guild) if section.guild_scoped
                 else section.open_view(self.view.owner_id))
-        await self.view.show(interaction, view, view.embed())
+        await self.view.show(interaction, view, view.content())
 
 
 class ConfigHomeView(ConfigView):
@@ -42,12 +42,12 @@ class ConfigHomeView(ConfigView):
         super().__init__(owner_id)
         self.add_item(SectionSelect())
 
-    def embed(self):
-        embed = discord.Embed(title="⚙️ Konfiguracja bota", description="Wybierz ustawienia z listy poniżej.", color=discord.Color.blurple())
+    def content(self):
+        content = PanelContent(title="⚙️ Konfiguracja bota", description="Wybierz ustawienia z listy poniżej.")
         for section in CONFIG_SECTIONS:
-            embed.add_field(name=section.title, value=section.description, inline=False)
-        embed.set_footer(text="Panel widoczny tylko dla Ciebie • wygasa po 10 minutach bezczynności")
-        return embed
+            content.add_field(name=section.title, value=section.description)
+        content.set_footer(text="Panel widoczny tylko dla Ciebie • wygasa po 10 minutach bezczynności")
+        return content
 
 
 # Add future screens here; configuration navigation stays in this module.
@@ -69,5 +69,6 @@ async def setup_config_commands(client: discord.Client, tree: app_commands.Comma
         if not await require_administrator(interaction):
             return
         view = ConfigHomeView(interaction.user.id)
-        await interaction.response.send_message(embed=view.embed(), view=view, ephemeral=True)
+        view.render(view.content())
+        await interaction.response.send_message(view=view, ephemeral=True, allowed_mentions=discord.AllowedMentions.none())
         view.message = await interaction.original_response()
