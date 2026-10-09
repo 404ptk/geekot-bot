@@ -1,4 +1,4 @@
-"""Persistent settings used only by the FACEIT LIVE watcher."""
+"""Persistent FACEIT player list and LIVE publication channel."""
 import json
 from pathlib import Path
 

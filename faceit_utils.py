@@ -6,6 +6,7 @@ from discord.ext import tasks
 from datetime import datetime
 import os
 from startup_logger import record_startup_step
+from config.conf_faceit_live_settings import load_config as load_faceit_config
 
 GUILD_ID = 551503797067710504
 
@@ -236,7 +237,7 @@ async def track_daily_elo():
     if daily_stats.get("date") != today_str:
         # It's a new day, save current ELOs
         new_daily = {}
-        for nick in player_nicknames:
+        for nick in load_faceit_config()['players']:
             p_data = get_faceit_player_data(nick)
             if p_data:
                 elo = p_data.get('games', {}).get('cs2', {}).get('faceit_elo')

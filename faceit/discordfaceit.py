@@ -1,4 +1,5 @@
 import discord
+from config.conf_faceit_live_settings import load_config
 
 
 async def get_discordfaceit_stats():
@@ -15,7 +16,7 @@ async def get_discordfaceit_stats():
     previous_positions = {player["nickname"]: i for i, player in enumerate(previous_stats)}
     previous_elo_map = {player["nickname"]: player["elo"] for player in previous_stats}
 
-    for nickname in fu.player_nicknames:
+    for nickname in load_config()['players']:
         player_data = fu.get_faceit_player_data(nickname)
         if player_data:
             player_level = player_data.get("games", {}).get("cs2", {}).get("skill_level", 0)
