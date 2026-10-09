@@ -10,7 +10,6 @@
 .__pycache__
 *faceit_api.txt
 *football-api.txt
-*leetify_api.txt
 *kick_client_id.txt
 *twitch_client_id.txt
 *kick_client_secret.txt
@@ -59,7 +58,6 @@ txt/kick_client_id.txt
 txt/kick_client_secret.txt
 txt/twitch_client_id.txt
 txt/twitch_client_secret.txt
-txt/leetify_api.txt
 txt/youtube_api_key.txt
 txt/google_service_account.json
 txt/relations.json

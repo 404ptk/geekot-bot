@@ -21,7 +21,6 @@ from commands import mod as mod_module
 from commands import minecraft
 import faceit_utils
 import masny_utils
-import leetify_utils
 from commands import steam as steam_module
 from commands import relations as relations_module
 from config import conf_menu as config_module
@@ -206,7 +205,6 @@ async def on_ready():
         ("Mod commands", mod_module.setup_mod_commands(client, client.tree, guild_id=GUILD_ID)),
         ("Faceit commands", faceit_utils.setup_faceit_commands(client, client.tree, guild_id=GUILD_ID)),
         ("Masny commands", masny_utils.setup_masny_commands(client, client.tree, guild_id=GUILD_ID)),
-        ("Leetify commands", leetify_utils.setup_leetify_commands(client, client.tree, guild_id=GUILD_ID)),
         ("Steam commands", steam_module.setup_steam_commands(client, client.tree, guild_id=GUILD_ID)),
         ("Config commands", config_module.setup_config_commands(client, client.tree, guild_id=GUILD_ID)),
         ("Relations commands", relations_module.setup_relations_commands(client, client.tree, guild_id=GUILD_ID)),
