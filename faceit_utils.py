@@ -207,10 +207,6 @@ def get_faceit_match_roster(match_id):
             roster[nick]["country"] = p_data.get("country", "")
     return roster
 
-def reset_faceit_ranking():
-    if os.path.exists(FACEIT_RANKING_FILE):
-        os.remove(FACEIT_RANKING_FILE)
-
 def load_daily_stats():
     if os.path.exists(FACEIT_DAILY_STATS_FILE):
         try:
@@ -302,21 +298,6 @@ async def setup_faceit_commands(client: discord.Client, tree: app_commands.Comma
     from faceit.scout import register_scout_command
 
     register_scout_command(tree=tree, guild=guild)
-
-    @tree.command(
-        name="resetfaceitranking",
-        description="Resetuje ranking Faceit (czyści plik rankingowy)",
-        guild=guild
-    )
-    async def resetfaceitranking(interaction: discord.Interaction):
-        if interaction.user.id != 443406275716579348:
-            await interaction.response.send_message(
-                "❌ Nie masz uprawnień do tej komendy.", ephemeral=True
-            )
-            return
-
-        reset_faceit_ranking()
-        await interaction.response.send_message("✅ Ranking Faceit został zresetowany (plik faceit_ranking.txt usunięty).", ephemeral=True)
 
     if not track_daily_elo.is_running():
         track_daily_elo.start()
