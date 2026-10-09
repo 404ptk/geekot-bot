@@ -3,6 +3,7 @@ import discord
 
 from config.conf_panel import ConfigView
 from config import conf_faceit_live_settings as live_config
+from config.conf_faceit_weekly import FaceitWeeklyView
 
 
 class FaceitSectionSelect(discord.ui.Select):
@@ -159,6 +160,7 @@ class RemovePlayerView(ConfigView):
 # Register further Faceit configuration screens alongside LIVE.
 FACEIT_SECTIONS = (
     ('live', 'LIVE', 'Śledzeni gracze i kanał wiadomości', FaceitLiveView),
+    ('weekly', 'Tygodniówka', 'Częstotliwość i kanał wysyłki podsumowań', FaceitWeeklyView),
 )
 
 

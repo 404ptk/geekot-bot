@@ -4,6 +4,8 @@ from datetime import datetime, timedelta
 from urllib.parse import quote
 
 import discord
+from config.conf_faceit_live_settings import load_config
+from config.conf_faceit_weekly_settings import load_config as load_weekly_config
 
 FACEIT_WEEKLY_STATS_FILE = "txt/faceit_weekly_stats.json"
 # If the bot runs in a different timezone than desired, adjust weekly summary
@@ -232,8 +234,10 @@ def create_weekly_stats_embed(start_ts, end_ts, snapshot_elos, title, descriptio
     _match_details_cache = {}
 
     player_stats_list = []
+    player_nicknames = load_config()['players']
+    canonical_map = {n.lower(): n for n in player_nicknames}
 
-    for nickname in fu.player_nicknames:
+    for nickname in player_nicknames:
         player_data = fu.get_faceit_player_data(nickname)
         if not player_data:
             continue
@@ -318,8 +322,6 @@ def create_weekly_stats_embed(start_ts, end_ts, snapshot_elos, title, descriptio
             return None
 
         from faceit_utils import get_faceit_match_details
-
-        canonical_map = {n.lower(): n for n in fu.player_nicknames}
 
         if total >= 1:
             matches_to_check = player.get("matches", [])
@@ -620,22 +622,32 @@ async def run_weekly_summary_if_due(client, today=None):
 
     weekly_stats = load_weekly_stats()
     last_run_date = weekly_stats.get("last_run_date")
+    config = load_weekly_config()
+    interval_days = config['interval_weeks'] * 7
 
     # Run when the adjusted time falls on Monday (weekday==0) and we haven't
     # already run for that adjusted date.
     if adjusted.weekday() != 0 or last_run_date == adjusted_date_str:
         return
 
-    target_channel_id = 1301248598108798996
-    channel = client.get_channel(target_channel_id)
+    previous_run = last_run_date or weekly_stats.get('date')
+    if previous_run:
+        try:
+            last_sent = datetime.strptime(previous_run, '%Y-%m-%d').date()
+        except ValueError:
+            last_sent = None
+        if last_sent is not None and (adjusted.date() - last_sent).days < interval_days:
+            return
+
+    channel = client.get_channel(config['channel_id'])
     if not channel:
         return
 
     last_snapshot_date_str = weekly_stats.get("date")
     try:
-        start_dt = datetime.strptime(last_snapshot_date_str, "%Y-%m-%d") if last_snapshot_date_str else (adjusted - timedelta(days=7))
+        start_dt = datetime.strptime(last_snapshot_date_str, "%Y-%m-%d") if last_snapshot_date_str else (adjusted - timedelta(days=interval_days))
     except ValueError:
-        start_dt = adjusted - timedelta(days=7)
+        start_dt = adjusted - timedelta(days=interval_days)
 
     start_ts = start_dt.timestamp()
     # Use adjusted (shifted) time as the period end so the period matches the
@@ -661,7 +673,7 @@ async def run_weekly_summary_if_due(client, today=None):
         await channel.send(embed=embed)
 
     new_snapshot = {}
-    for nick in fu.player_nicknames:
+    for nick in load_config()['players']:
         p_data = fu.get_faceit_player_data(nick)
         if p_data:
             elo = p_data.get("games", {}).get("cs2", {}).get("faceit_elo")
