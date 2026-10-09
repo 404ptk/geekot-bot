@@ -9,7 +9,6 @@ GUILD_ID = 551503797067710504
 ARCHIVE_CATEGORY_ID = 1360605748186452110
 OWNER_ID = 443406275716579348  # Twój discord user ID
 CHANNEL_PRIVACY_FILE = "txt/channel_privacy_settings.json"
-CHANNEL_GUARD_ROLES = {"high tier guard", "mid tier guard"}
 logger = logging.getLogger(__name__)
 
 def load_channel_privacy():
@@ -82,12 +81,7 @@ async def setup_mod_commands(client: discord.Client, tree: discord.app_commands.
         interaction: discord.Interaction,
         kanal: discord.TextChannel = None
     ):
-        member = interaction.user
-        if not any(role.name.lower() in CHANNEL_GUARD_ROLES for role in getattr(member, "roles", [])):
-            await interaction.response.send_message(
-                "Nie masz wystarczających uprawnień do wykonania tej komendy.",
-                ephemeral=True
-            )
+        if not await require_moderator_command(interaction, "zamknij"):
             return
 
         channel = kanal or interaction.channel
@@ -153,6 +147,8 @@ async def setup_mod_commands(client: discord.Client, tree: discord.app_commands.
         kanal="Kanał do otwarcia (jeśli nie podasz, otworzy bieżący)"
     )
     async def otworz(interaction: discord.Interaction, kanal: discord.TextChannel = None):
+        if not await require_moderator_command(interaction, "otworz"):
+            return
         channel = kanal or interaction.channel
 
         def log_issue(code, detail):
@@ -161,12 +157,6 @@ async def setup_mod_commands(client: discord.Client, tree: discord.app_commands.
                 code, interaction.guild.id, getattr(channel, "id", None), interaction.user.id, detail,
             )
 
-        if not any(role.name.lower() in CHANNEL_GUARD_ROLES for role in getattr(interaction.user, "roles", [])):
-            log_issue("access_denied", "Użytkownik nie ma roli guard.")
-            await interaction.response.send_message(
-                "Nie masz wystarczających uprawnień do wykonania tej komendy.", ephemeral=True
-            )
-            return
         if not isinstance(channel, discord.TextChannel):
             log_issue("unsupported_channel", "Kanał nie jest kanałem tekstowym.")
             await interaction.response.send_message(

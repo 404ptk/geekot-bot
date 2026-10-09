@@ -41,7 +41,7 @@ class PermissionsView(ConfigView):
             embed.add_field(name=f'/{command}', value=('Globalnie: ' if inherited else 'Osobno: ') + role_label(self.guild, role_id), inline=False)
         if notice:
             embed.add_field(name='Wynik', value=notice, inline=False)
-        embed.set_footer(text='Zmiany działają bez restartu. Obecnie objęta konfiguracją: /czysc.')
+        embed.set_footer(text='Zmiany działają bez restartu.')
         return embed
 
     @discord.ui.button(label='Globalna ranga moderatora', style=discord.ButtonStyle.primary, row=0)

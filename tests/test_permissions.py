@@ -60,6 +60,8 @@ class PermissionsTests(unittest.TestCase):
         async def run():
             view = PermissionsView(10, self.guild)
             self.assertEqual(len(view.children), 3)
+            command_select = next(child for child in view.children if isinstance(child, discord.ui.Select))
+            self.assertEqual({option.value for option in command_select.options}, {'czysc', 'otworz', 'zamknij'})
             self.assertTrue(PermissionRoleView(10, self.guild).inherit.disabled)
             self.assertFalse(PermissionRoleView(10, self.guild, 'czysc').inherit.disabled)
             client = discord.Client(intents=discord.Intents.none())
@@ -73,6 +75,37 @@ class PermissionsTests(unittest.TestCase):
             interaction.response.send_message.assert_awaited_once()
             interaction.response.defer.assert_not_awaited()
             self.assertIsNone(command.default_permissions)
+        asyncio.run(run())
+
+    def test_archive_commands_use_global_role_and_independent_overrides(self):
+        async def run():
+            client = discord.Client(intents=discord.Intents.none())
+            tree = app_commands.CommandTree(client)
+            await setup_mod_commands(client, tree, guild_id=1)
+            settings.set_role(1, 2)
+            settings.set_role(1, 5, 'otworz')
+            for name in ('otworz', 'zamknij'):
+                command = tree.get_command(name, guild=discord.Object(id=1))
+                interaction = SimpleNamespace(guild=self.guild, channel=object(),
+                    user=SimpleNamespace(id=10, top_role=self.roles[2],
+                                         guild_permissions=discord.Permissions.none()),
+                    response=SimpleNamespace(send_message=AsyncMock()))
+                await command.callback(interaction)
+                message = interaction.response.send_message.call_args.args[0]
+                if name == 'otworz':
+                    self.assertIn('Nie masz wystarczających uprawnień', message)
+                else:
+                    self.assertIn('tylko na kanałach tekstowych', message)
+                interaction.response.send_message.reset_mock()
+                settings.set_role(1, None, name)
+                await command.callback(interaction)
+                self.assertIn('Nie masz wystarczających uprawnień',
+                              interaction.response.send_message.call_args.args[0])
+                interaction.response.send_message.reset_mock()
+                interaction.user.guild_permissions = discord.Permissions(administrator=True)
+                await command.callback(interaction)
+                self.assertIn('tylko na kanałach tekstowych',
+                              interaction.response.send_message.call_args.args[0])
         asyncio.run(run())
 
 

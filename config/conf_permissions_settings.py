@@ -3,7 +3,11 @@ import json
 from pathlib import Path
 
 CONFIG_FILE = Path('txt/permissions_config.json')
-MODERATOR_COMMANDS = {'czysc': 'Usuwanie wiadomości z kanału'}
+MODERATOR_COMMANDS = {
+    'czysc': 'Usuwanie wiadomości z kanału',
+    'otworz': 'Przywracanie kanału z archiwum',
+    'zamknij': 'Przenoszenie kanału do archiwum i blokowanie pisania',
+}
 
 
 def load_config(guild_id):
