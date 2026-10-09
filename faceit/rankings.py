@@ -50,4 +50,4 @@ async def player_ranking_line(player_data, api_key, guild=None):
         parts.append(f'-# {get_country_flag_badge(guild, country)} #{national}')
     if regional is not None:
         parts.append(f'-# 🌍 #{regional}')
-    return '\n'.join(parts)
+    return ' | '.join(parts)
