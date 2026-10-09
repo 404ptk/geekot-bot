@@ -100,7 +100,11 @@ def _save_match_to_cache(match_id, match_data):
 def get_faceit_match_details(match_id):
     # Check cache first
     cached = _get_match_from_cache(match_id)
-    if cached:
+    if cached and all(
+        'zeus_kills' in player and 'knife_kills' in player
+        for team in cached.get('teams', {}).values()
+        for player in team.get('players', [])
+    ):
         return cached
     
     url = f"https://open.faceit.com/data/v4/matches/{match_id}/stats"
@@ -147,6 +151,8 @@ def get_faceit_match_details(match_id):
                 "utility_dmg": int(player["player_stats"].get("Utility Damage", 0)),
                 "kr_ratio": player["player_stats"].get("K/R Ratio", "0"),
                 "mvps": int(player["player_stats"].get("MVPs", 0)),
+                "zeus_kills": int(player["player_stats"].get("Zeus Kills", 0)),
+                "knife_kills": int(player["player_stats"].get("Knife Kills", 0)),
             })
     # Determine final score (e.g., 13:11)
     score = None

@@ -189,17 +189,17 @@ async def get_last_match_stats(nickname, guild=None):
     header_text = f"# {title_prefix} Ostatni mecz {player_profile_link}\n{desc.rstrip()}"
     match_date = format_match_datetime(match_general.get('started_at'))
     if match_date:
-        header_text += f"\n-# Data meczu: {match_date}"
+        header_text += f"\n-# {match_date}"
     else:
         match_date = (format_match_datetime(match_general.get('finished_at'))
                       or format_match_datetime(last_stats.get('Match Finished At')))
         if match_date:
-            header_text += f"\n-# Zakończono: {match_date}"
+            header_text += f"\n-# {match_date}"
     if team_rating_str:
         mmr_subtext = "\n".join(
             f"-# {line}" for line in team_rating_str.splitlines() if line.strip()
         )
-        header_text += f"\n{mmr_subtext}"
+        header_text += f"\n\n{mmr_subtext}"
 
     view_children = [
         discord.ui.Section(
@@ -365,12 +365,19 @@ async def get_last_match_stats(nickname, guild=None):
             mk_parts.append(f"5x: `{mk['5k']}`")
 
         mk_str = f"**Kills:** {' ▫️ '.join(mk_parts)}\n" if mk_parts else ""
+        weapon_parts = []
+        for label, key in [('Zeus', 'zeus_kills'), ('Noże', 'knife_kills')]:
+            count = pds.get(key, 0)
+            if count > 0:
+                weapon_parts.append(f'**{label}:** `{count}`')
+        weapon_str = ' ▫️ '.join(weapon_parts) + '\n' if weapon_parts else ''
 
         adv_stats = (
             f"{mk_str}"
             f"**Entry:** `{entry['wins']}/{entry['count']}` ▫️ **Clutche:** `{clutch['wins']}/{clutch['count']}`\n"
             f"**Flashe:** `{flash['successes']}/{flash['count']}` ▫️ **Utility Dmg:** `{udmg}`\n"
             f"**K/R Ratio:** `{kr}` ▫️ **MVP:** `{mvps}`\n"
+            f"{weapon_str}"
         )
         view_children.append(discord.ui.Separator())
         view_children.append(
