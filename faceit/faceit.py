@@ -1,6 +1,7 @@
 import discord
 from discord import app_commands
 from faceit.common import get_guild_emoji_text
+from faceit.rankings import player_ranking_line
 
 
 def register_faceit_command(tree, guild, faceit_nick_autocomplete):
@@ -53,12 +54,15 @@ def register_faceit_command(tree, guild, faceit_nick_autocomplete):
                 if elo_diff != 0:
                     daily_elo_change = f" ({'+' if elo_diff > 0 else ''}{elo_diff})"
 
+        ranking = await player_ranking_line(player_data, fu.FACEIT_API_KEY, interaction.guild)
+        ranking_text = f"\n{ranking}" if ranking else ""
+
         view = discord.ui.LayoutView(timeout=None)
         view_children = [
             discord.ui.Section(
                 discord.ui.TextDisplay(
                     f"# {title_prefix}{player_nickname}\n"
-                    f"{player_level_emoji} | **ELO:** {player_elo}{daily_elo_change}"
+                    f"{player_level_emoji} | **ELO:** {player_elo}{daily_elo_change}{ranking_text}"
                 ),
                 accessory=discord.ui.Thumbnail(avatar_url),
             )
