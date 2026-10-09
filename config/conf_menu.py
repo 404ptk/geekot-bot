@@ -6,7 +6,7 @@ import discord
 from discord import app_commands
 
 from commands import relations
-from config.conf_panel import ConfigView
+from config.conf_panel import ConfigView, require_administrator
 from config.conf_faceit import FaceitView
 from config.conf_relations import RelationsView
 from config.conf_steam import SteamView
@@ -59,7 +59,11 @@ async def setup_config_commands(client: discord.Client, tree: app_commands.Comma
     guild = discord.Object(id=guild_id if guild_id else relations.GUILD_ID)
 
     @tree.command(name="config", description="Otwiera prywatny panel konfiguracji bota", guild=guild)
+    @app_commands.default_permissions(administrator=True)
+    @app_commands.guild_only()
     async def config(interaction: discord.Interaction):
+        if not await require_administrator(interaction):
+            return
         view = ConfigHomeView(interaction.user.id)
         await interaction.response.send_message(embed=view.embed(), view=view, ephemeral=True)
         view.message = await interaction.original_response()

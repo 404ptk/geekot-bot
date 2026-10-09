@@ -2,6 +2,14 @@
 import discord
 
 
+async def require_administrator(interaction: discord.Interaction) -> bool:
+    if interaction.guild is None or not interaction.permissions.administrator:
+        await interaction.response.send_message(
+            "Konfiguracja bota jest dostępna tylko dla administratorów serwera.", ephemeral=True)
+        return False
+    return True
+
+
 class ConfigView(discord.ui.View):
     def __init__(self, owner_id: int):
         super().__init__(timeout=600)
@@ -9,6 +17,8 @@ class ConfigView(discord.ui.View):
         self.message = None
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if not await require_administrator(interaction):
+            return False
         if interaction.user.id != self.owner_id:
             await interaction.response.send_message("Otwórz własny panel przez /config.", ephemeral=True)
             return False
@@ -35,5 +45,4 @@ class ConfigView(discord.ui.View):
             await interaction.followup.send(message, ephemeral=True)
         else:
             await interaction.response.send_message(message, ephemeral=True)
-
 
