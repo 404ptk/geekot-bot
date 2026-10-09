@@ -3,6 +3,7 @@ from discord import app_commands
 import requests
 from urllib.parse import quote
 from faceit.common import get_country_flag_badge, get_faceit_level_badge, get_guild_emoji_text
+from config.conf_faceit_live_settings import load_config
 
 
 async def get_last_match_stats(nickname, guild=None):
@@ -191,6 +192,8 @@ async def get_last_match_stats(nickname, guild=None):
         p_name = p_team.get("name", "Twoja drużyna")
         e_name = e_team.get("name", "Przeciwnik")
 
+    premade_nicknames = {nick.casefold() for nick in load_config()['players']}
+
     def parse_team_players(team_key):
         players = []
         team_player_detailed_stats = None
@@ -230,7 +233,7 @@ async def get_last_match_stats(nickname, guild=None):
                     "level_badge": level_badge,
                     "country_flag": country_flag,
                     "is_target": player["nickname"] == player_nickname,
-                    "is_premade": player["nickname"] in fu.player_nicknames,
+                    "is_premade": player["nickname"].casefold() in premade_nicknames,
                 }
             )
 
