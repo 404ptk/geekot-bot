@@ -37,7 +37,6 @@ def parse_map_stats(payload):
             'winrate': winrate,
             'kd': stat_number(stats, 'Average K/D Ratio'),
             'adr': stat_number(stats, 'ADR'),
-            'hs': stat_number(stats, 'Average Headshots %'),
         })
     maps.sort(key=lambda item: (
         item['winrate'] if item['winrate'] is not None else -1,
@@ -63,8 +62,7 @@ class MapsView(discord.ui.LayoutView):
         nickname = self.player['nickname']
         profile = f'https://www.faceit.com/en/players/{quote(nickname, safe="")}'
         title = discord.ui.TextDisplay(
-            f'## 🗺️ Mapy · [{discord.utils.escape_markdown(nickname)}]({profile})\n'
-            '-# CS2 · 5v5 · według winrate, przy remisie ADR'
+            f'## 🗺️ Mapy · [{discord.utils.escape_markdown(nickname)}]({profile})'
         )
         container = discord.ui.Container(accent_color=0xFF5500)
         avatar = self.player.get('avatar')
@@ -77,11 +75,10 @@ class MapsView(discord.ui.LayoutView):
         for index, item in enumerate(self.maps, start=1):
             name = discord.utils.escape_markdown(item['name'])
             map_lines.append(
-                f"**{index}. {name}** · {item['matches']} meczów\n"
-                f"WR **{format_stat(item['winrate'], suffix='%')}** · "
-                f"K/D **{format_stat(item['kd'], 2)}** · "
-                f"ADR **{format_stat(item['adr'], 1)}** · "
-                f"HS **{format_stat(item['hs'], suffix='%')}**"
+                f"**{index}. {name}**\n"
+                f"WR: **{format_stat(item['winrate'], suffix='%')}** ({item['matches']}) · "
+                f"K/D: **{format_stat(item['kd'], 2)}** · "
+                f"ADR: **{format_stat(item['adr'], 1)}**"
             )
         container.add_item(discord.ui.TextDisplay("\n\n".join(map_lines)))
         container.add_item(discord.ui.Separator())
