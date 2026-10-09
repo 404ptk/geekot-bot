@@ -7,7 +7,6 @@ from config.conf_permissions_settings import require_moderator_command
 
 GUILD_ID = 551503797067710504
 ARCHIVE_CATEGORY_ID = 1360605748186452110
-OWNER_ID = 443406275716579348  # Twój discord user ID
 CHANNEL_PRIVACY_FILE = "txt/channel_privacy_settings.json"
 logger = logging.getLogger(__name__)
 
@@ -334,8 +333,7 @@ async def setup_mod_commands(client: discord.Client, tree: discord.app_commands.
         guild=guild
     )
     async def sync(interaction: discord.Interaction):
-        if interaction.user.id != OWNER_ID:
-            await interaction.response.send_message("❌ Nie masz uprawnień do synchronizacji komend.", ephemeral=True)
+        if not await require_moderator_command(interaction, "sync"):
             return
         try:
             synced = await client.tree.sync()
@@ -350,8 +348,7 @@ async def setup_mod_commands(client: discord.Client, tree: discord.app_commands.
         guild=guild
     )
     async def guildsync(interaction: discord.Interaction):
-        if interaction.user.id != OWNER_ID:
-            await interaction.response.send_message("❌ Nie masz uprawnień do synchronizacji komend.", ephemeral=True)
+        if not await require_moderator_command(interaction, "guildsync"):
             return
         try:
             synced = await client.tree.sync(guild=discord.Object(id=interaction.guild.id))
@@ -366,8 +363,7 @@ async def setup_mod_commands(client: discord.Client, tree: discord.app_commands.
         guild=guild
     )
     async def clearcmds(interaction: discord.Interaction):
-        if interaction.user.id != OWNER_ID:
-            await interaction.response.send_message("❌ Nie masz uprawnień do tej operacji.", ephemeral=True)
+        if not await require_moderator_command(interaction, "clearcmds"):
             return
         client.tree.clear_commands(guild=discord.Object(id=interaction.guild.id))
         await client.tree.sync(guild=discord.Object(id=interaction.guild.id))
@@ -380,6 +376,8 @@ async def setup_mod_commands(client: discord.Client, tree: discord.app_commands.
         guild=guild
     )
     async def slashlist(interaction: discord.Interaction):
+        if not await require_moderator_command(interaction, "slashlist"):
+            return
         cmds = client.tree.get_commands()
         if cmds:
             cmd_names = "\n".join(f"- {cmd.name}" for cmd in cmds)
@@ -394,6 +392,8 @@ async def setup_mod_commands(client: discord.Client, tree: discord.app_commands.
         guild=guild
     )
     async def gslashlist(interaction: discord.Interaction):
+        if not await require_moderator_command(interaction, "gslashlist"):
+            return
         cmds = client.tree.get_commands(guild=discord.Object(id=interaction.guild.id))
         if cmds:
             cmd_names = "\n".join(f"- {cmd.name}" for cmd in cmds)
@@ -408,8 +408,7 @@ async def setup_mod_commands(client: discord.Client, tree: discord.app_commands.
         guild=guild
     )
     async def clearglobalcmds(interaction: discord.Interaction):
-        if interaction.user.id != OWNER_ID:
-            await interaction.response.send_message("❌ Nie masz uprawnień do tej operacji.", ephemeral=True)
+        if not await require_moderator_command(interaction, "clearglobalcmds"):
             return
         try:
             client.tree.clear_commands(guild=None)

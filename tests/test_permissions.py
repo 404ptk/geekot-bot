@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import discord
 from discord import app_commands
@@ -61,7 +61,7 @@ class PermissionsTests(unittest.TestCase):
             view = PermissionsView(10, self.guild)
             self.assertEqual(len(view.children), 3)
             command_select = next(child for child in view.children if isinstance(child, discord.ui.Select))
-            self.assertEqual({option.value for option in command_select.options}, {'czysc', 'otworz', 'zamknij'})
+            self.assertEqual({option.value for option in command_select.options}, set(settings.MODERATOR_COMMANDS))
             self.assertTrue(PermissionRoleView(10, self.guild).inherit.disabled)
             self.assertFalse(PermissionRoleView(10, self.guild, 'czysc').inherit.disabled)
             client = discord.Client(intents=discord.Intents.none())
@@ -106,6 +106,45 @@ class PermissionsTests(unittest.TestCase):
                 await command.callback(interaction)
                 self.assertIn('tylko na kanałach tekstowych',
                               interaction.response.send_message.call_args.args[0])
+        asyncio.run(run())
+
+    def test_command_management_permissions(self):
+        async def run():
+            client = discord.Client(intents=discord.Intents.none())
+            tree = app_commands.CommandTree(client)
+            await setup_mod_commands(client, tree, guild_id=1)
+            client.tree = SimpleNamespace(sync=AsyncMock(return_value=[]),
+                                          clear_commands=Mock(), get_commands=Mock(return_value=[]))
+            for name in ('clearcmds', 'clearglobalcmds', 'guildsync', 'slashlist', 'sync', 'gslashlist'):
+                with self.subTest(command=name):
+                    settings.set_role(1, None)
+                    command = tree.get_command(name, guild=discord.Object(id=1))
+                    interaction = SimpleNamespace(guild=self.guild, user=SimpleNamespace(
+                        top_role=self.roles[2], guild_permissions=discord.Permissions.none()),
+                        response=SimpleNamespace(send_message=AsyncMock()))
+                    for operation in vars(client.tree).values():
+                        operation.reset_mock()
+                    await command.callback(interaction)
+                    self.assertIn('Nie masz wystarczających uprawnień',
+                                  interaction.response.send_message.call_args.args[0])
+                    for operation in vars(client.tree).values():
+                        operation.assert_not_called()
+                    settings.set_role(1, 2)
+                    interaction.response.send_message.reset_mock()
+                    await command.callback(interaction)
+                    self.assertNotIn('Nie masz wystarczających uprawnień',
+                                     interaction.response.send_message.call_args.args[0])
+                    if name in ('clearcmds', 'clearglobalcmds'):
+                        client.tree.clear_commands.assert_called_once()
+                    if name in ('clearcmds', 'clearglobalcmds', 'guildsync', 'sync'):
+                        client.tree.sync.assert_awaited_once()
+                    else:
+                        client.tree.get_commands.assert_called_once()
+                    settings.set_role(1, None, name)
+                    interaction.response.send_message.reset_mock()
+                    await command.callback(interaction)
+                    self.assertIn('Nie masz wystarczających uprawnień',
+                                  interaction.response.send_message.call_args.args[0])
         asyncio.run(run())
 
 

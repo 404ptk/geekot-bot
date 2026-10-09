@@ -7,6 +7,12 @@ MODERATOR_COMMANDS = {
     'czysc': 'Usuwanie wiadomości z kanału',
     'otworz': 'Przywracanie kanału z archiwum',
     'zamknij': 'Przenoszenie kanału do archiwum i blokowanie pisania',
+    'clearcmds': 'Usuwanie komend slash z bieżącego serwera',
+    'clearglobalcmds': 'Usuwanie globalnych komend slash ze wszystkich serwerów',
+    'guildsync': 'Synchronizacja komend slash na bieżącym serwerze',
+    'slashlist': 'Lista globalnych komend slash',
+    'sync': 'Synchronizacja globalnych komend slash',
+    'gslashlist': 'Lista komend slash na bieżącym serwerze',
 }
 
 
