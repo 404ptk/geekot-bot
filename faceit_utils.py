@@ -262,7 +262,7 @@ async def setup_faceit_commands(client: discord.Client, tree: app_commands.Comma
     # Autocomplete callback for Faceit nickname
     async def faceit_nick_autocomplete(interaction: discord.Interaction, current: str):
         query = (current or "").lower()
-        options = [n for n in player_nicknames if query in n.lower()]
+        options = [n for n in load_faceit_config()['players'] if query in n.lower()]
         return [app_commands.Choice(name=n, value=n) for n in options[:25]]
 
     from faceit.faceit import register_faceit_command
