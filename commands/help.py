@@ -19,6 +19,7 @@ async def setup_help_commands(client: discord.Client, tree: app_commands.Command
         )
         embed.add_field(name="🎮 **Faceit**", value="Sprawdź statystyki graczy na platformie Faceit:\n"
             "`/faceit [nick]` - Statystyki profilu [nick]\n"
+            "`/maps [nick]` - Statystyki map CS2 według winrate\n"
             "`/discordfaceit` - Statystyki discorda na Faceicie\n"
             "`/last [nick]` - Statystyki drużyny gracza w ostatnim meczu", inline=False)
         

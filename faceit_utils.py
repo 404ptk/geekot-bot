@@ -277,6 +277,14 @@ async def setup_faceit_commands(client: discord.Client, tree: app_commands.Comma
 
     from faceit.last import register_last_command
 
+    from faceit.maps import register_maps_command
+
+    register_maps_command(
+        tree=tree,
+        guild=guild,
+        faceit_nick_autocomplete=faceit_nick_autocomplete,
+    )
+
     register_last_command(
         tree=tree,
         guild=guild,
