@@ -3,6 +3,7 @@ import json
 import os
 import logging
 from datetime import datetime
+from config.conf_permissions_settings import require_moderator_command
 
 GUILD_ID = 551503797067710504
 ARCHIVE_CATEGORY_ID = 1360605748186452110
@@ -283,12 +284,7 @@ async def setup_mod_commands(client: discord.Client, tree: discord.app_commands.
         liczba: discord.app_commands.Range[int, 1, 100],
         uzytkownik: discord.Member = None,
     ):
-        member = interaction.user
-        if not any(role.name.lower() == "high tier guard" for role in getattr(member, "roles", [])):
-            await interaction.response.send_message(
-                "Nie masz wystarczających uprawnień do wykonania tej komendy.",
-                ephemeral=True,
-            )
+        if not await require_moderator_command(interaction, "czysc"):
             return
 
         if not isinstance(interaction.channel, discord.TextChannel):

@@ -10,6 +10,7 @@ from config.conf_panel import ConfigView, require_administrator
 from config.conf_faceit import FaceitView
 from config.conf_relations import RelationsView
 from config.conf_steam import SteamView
+from config.conf_permissions import PermissionsView
 
 
 @dataclass(frozen=True)
@@ -18,6 +19,7 @@ class ConfigSection:
     title: str
     description: str
     open_view: Callable
+    guild_scoped: bool = False
 
 
 class SectionSelect(discord.ui.Select):
@@ -30,7 +32,8 @@ class SectionSelect(discord.ui.Select):
 
     async def callback(self, interaction):
         section = next(section for section in CONFIG_SECTIONS if section.key == self.values[0])
-        view = section.open_view(self.view.owner_id)
+        view = (section.open_view(self.view.owner_id, interaction.guild) if section.guild_scoped
+                else section.open_view(self.view.owner_id))
         await self.view.show(interaction, view, view.embed())
 
 
@@ -52,6 +55,7 @@ CONFIG_SECTIONS = (
     ConfigSection("relations", "Relacje", "Użytkownicy i odmiana nicków", RelationsView),
     ConfigSection("faceit", "Faceit", "Ustawienia funkcji Faceit", FaceitView),
     ConfigSection("steam", "Steam", "Kanał i źródła aktualizacji CS2", SteamView),
+    ConfigSection("permissions", "Permisje", "Globalna ranga moderatora i dostęp do komend", PermissionsView, True),
 )
 
 
