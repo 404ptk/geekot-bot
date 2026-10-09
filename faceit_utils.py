@@ -32,9 +32,6 @@ def load_token(filename, startup_label=None):
 
 FACEIT_API_KEY = load_token('txt/faceit_api.txt', startup_label="Faceit API token")
 
-# Lista pseudonimów graczy do rankingu Discorda
-player_nicknames = ['utopiasz', 'radzioswir', 'PhesterM9', '-Masny-', '-mateuko', 'Kvzia', 'Kajetov', 'MlodyHubii']
-
 FACEIT_RANKING_FILE = "txt/faceit_ranking.txt"
 FACEIT_DAILY_STATS_FILE = "txt/faceit_daily_stats.json"
 FACEIT_MATCHES_STATS_FILE = "txt/faceit_matches_stats.json"
@@ -180,8 +177,7 @@ def get_faceit_match_details(match_id):
     return result
 
 def get_faceit_match_roster(match_id):
-    """Fetches match roster with level for all players (1 API call).
-    ELO is fetched only for players in player_nicknames to minimize API calls."""
+    """Fetch the match roster and enrich all players with ELO and country."""
     url = f"https://open.faceit.com/data/v4/matches/{match_id}"
     headers = {"Authorization": f"Bearer {FACEIT_API_KEY}"}
     response = requests.get(url, headers=headers)
