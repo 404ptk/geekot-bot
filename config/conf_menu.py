@@ -9,6 +9,7 @@ from commands import relations
 from config.conf_panel import ConfigView
 from config.conf_faceit import FaceitView
 from config.conf_relations import RelationsView
+from config.conf_steam import SteamView
 
 
 @dataclass(frozen=True)
@@ -50,6 +51,7 @@ class ConfigHomeView(ConfigView):
 CONFIG_SECTIONS = (
     ConfigSection("relations", "Relacje", "Użytkownicy i odmiana nicków", RelationsView),
     ConfigSection("faceit", "Faceit", "Ustawienia funkcji Faceit", FaceitView),
+    ConfigSection("steam", "Steam", "Kanał i źródła aktualizacji CS2", SteamView),
 )
 
 

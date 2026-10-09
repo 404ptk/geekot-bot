@@ -1,0 +1,28 @@
+"""Persistent channel and independent CS2 update source switches."""
+import json
+from pathlib import Path
+
+CONFIG_FILE = Path('txt/steam_config.json')
+DEFAULT_CONFIG = {
+    'channel_id': 1301248598108798996,
+    'official_enabled': True,
+    'github_enabled': True,
+}
+
+
+def load_config():
+    if not CONFIG_FILE.exists():
+        return dict(DEFAULT_CONFIG)
+    with CONFIG_FILE.open(encoding='utf-8') as file:
+        return {**DEFAULT_CONFIG, **json.load(file)}
+
+
+def update_config(**changes):
+    config = load_config()
+    config.update(changes)
+    CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    temporary = CONFIG_FILE.with_suffix('.tmp')
+    with temporary.open('w', encoding='utf-8') as file:
+        json.dump(config, file, ensure_ascii=False, indent=4)
+    temporary.replace(CONFIG_FILE)
+    return config

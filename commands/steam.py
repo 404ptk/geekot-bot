@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 STEAM_HISTORY_FILE = "txt/steam_history.json"
 CS2_UPDATES_TRACKING_FILE = "txt/cs2_updates_tracking.json"
 CS2_OFFICIAL_UPDATES_TRACKING_FILE = "txt/cs2_official_updates_tracking.json"
-CS2_UPDATES_CHANNEL_ID = 1301248598108798996
+from config.conf_steam_settings import load_config as load_steam_config
 
 def load_steam_history():
     if os.path.exists(STEAM_HISTORY_FILE):
@@ -284,6 +284,8 @@ async def fetch_official_cs2_news(session: aiohttp.ClientSession, count: int = 1
 async def monitor_official_cs2_updates_loop():
     from startup_guard import allow_background_api
 
+    if not load_steam_config()["official_enabled"]:
+        return
     if not allow_background_api("monitor oficjalnych aktualizacji CS2"):
         return
     try:
@@ -490,6 +492,8 @@ async def monitor_cs2_updates_loop():
     """Monitoruje aktualizacje CS2 z GameTracking-CS2"""
     from startup_guard import allow_background_api
 
+    if not load_steam_config()["github_enabled"]:
+        return
     if not allow_background_api("monitor aktualizacji CS2"):
         return
 
@@ -606,6 +610,9 @@ async def setup_steam_commands(client: discord.Client, tree: app_commands.Comman
         """Wysyła zakolejkowane aktualizacje CS2 na Discord"""
         from startup_guard import allow_background_api
 
+        config = load_steam_config()
+        if not config["github_enabled"]:
+            return
         if not allow_background_api("posty z aktualizacjami CS2"):
             return
 
@@ -616,9 +623,9 @@ async def setup_steam_commands(client: discord.Client, tree: app_commands.Comman
             return
         
         try:
-            channel = client.get_channel(CS2_UPDATES_CHANNEL_ID)
+            channel = client.get_channel(config["channel_id"])
             if not channel:
-                logging.error(f"Cannot find CS2 updates channel: {CS2_UPDATES_CHANNEL_ID}")
+                logging.error(f"Cannot find CS2 updates channel: {config['channel_id']}")
                 return
             
             for commit in pending_commits[:5]:  # Wysyłaj max 5 na raz
@@ -740,15 +747,18 @@ async def setup_steam_commands(client: discord.Client, tree: app_commands.Comman
     async def send_pending_official_cs2_updates():
         from startup_guard import allow_background_api
 
+        config = load_steam_config()
+        if not config["official_enabled"]:
+            return
         if not allow_background_api("oficjalne posty z aktualizacjami CS2"):
             return
         tracking = load_cs2_official_tracking()
         pending = tracking.get("pending_news", [])
         if not pending:
             return
-        channel = client.get_channel(CS2_UPDATES_CHANNEL_ID)
+        channel = client.get_channel(config["channel_id"])
         if not channel:
-            logging.error(f"Cannot find CS2 updates channel: {CS2_UPDATES_CHANNEL_ID}")
+            logging.error(f"Cannot find CS2 updates channel: {config['channel_id']}")
             return
 
         # Resolve the current newest item from Steam instead of draining an
