@@ -392,13 +392,6 @@ async def get_last_match_stats(nickname, guild=None):
 
     match_link = f"https://www.faceit.com/en/cs2/room/{match_id}/scoreboard"
     links = f"🔗 [Lobby]({match_link})"
-    demo_urls = match_general.get('demo_url') or []
-    if isinstance(demo_urls, str):
-        demo_urls = [demo_urls]
-    demo_url = next((url for url in demo_urls
-                     if isinstance(url, str) and url.startswith(('https://', 'http://'))), None)
-    if demo_url:
-        links += f" ▫️ [⬇️ Pobierz demo]({demo_url})"
     view_children.append(discord.ui.Separator())
     view_children.append(discord.ui.TextDisplay(links))
 
