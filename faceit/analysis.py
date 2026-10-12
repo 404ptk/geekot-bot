@@ -1,7 +1,7 @@
 """Exploratory CS2 history analysis, with bounded fetching and a private V2 panel."""
 import asyncio
 from collections import Counter, defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 import logging
 import math
@@ -104,6 +104,11 @@ class Match:
     deaths: float | None
     rounds: float | None
     half: float | None
+    doubles: float | None = None
+    triples: float | None = None
+    quads: float | None = None
+    pentas: float | None = None
+    opponents: dict = field(default_factory=dict)
     session: int = 0
     previous: bool | None = None
 
@@ -155,6 +160,11 @@ def parse_matches(dataset):
                 kr=stat_number(values, 'K/R Ratio'), hs=hs if hs is not None and hs <= 100 else None,
                 kills=stat_number(values, 'Kills'), deaths=stat_number(values, 'Deaths'),
                 rounds=stat_number(values, 'Rounds'), half=half if half is not None and half <= 12 else None,
+                doubles=stat_number(values, 'Double Kills'), triples=stat_number(values, 'Triple Kills'),
+                quads=stat_number(values, 'Quadro Kills'), pentas=stat_number(values, 'Penta Kills'),
+                opponents={p['player_id']: p.get('nickname') or 'Nieznany gracz'
+                           for other, team in teams.items() if other != side
+                           for p in team.get('players', []) if p.get('player_id')},
             )
         except (KeyError, TypeError, ValueError, OverflowError, OSError):
             skipped += 1
@@ -271,8 +281,9 @@ def stable_contrast(matches, classify, a, b, minimum=15):
 
 
 class AnalysisReport:
-    def __init__(self, dataset, known_players):
+    def __init__(self, dataset, known_players, peer_datasets=()):
         self.player = dataset['player']
+        self.peer_datasets = tuple(peer_datasets)
         self.fetched_at = dataset['fetched_at']
         self.matches, self.skipped = parse_matches(dataset)
         if not self.matches:
@@ -397,8 +408,9 @@ class AnalysisReport:
             f'ADR: {sum(m.adr is not None for m in matches)}. K/D: {sum(m.kd is not None for m in matches)}. '
             f'Pominięte nieprawidłowe wpisy: {self.skipped}.\nBrak pola oznacza brak danych, a nie zero.',
             '**Jak czytać liczby**\nWR to odsetek wygranych. ADR, K/D, K/R i HS to średnie z dostępnych meczów, bez ważenia długością meczu. Przedziały WR pokazują niepewność przy małej próbie.',
-            '**Jak powstają obserwacje**\nWymagamy minimalnej próby, wyraźnej różnicy oraz zgodnego kierunku w starszej i nowszej części historii. Dla sesji sprawdzamy też różne długości przerw. Nie wymuszamy liczby wniosków ani nie tworzymy osobnej obserwacji dla każdej mapy.',
-            '**Ograniczenia**\nTo analiza eksploracyjna: wybór spośród wielu zależności zwiększa ryzyko przypadkowego wyniku. Przedziały nie są skorygowane o ten wybór. Potwierdzenie wymaga nowych meczów. Nie wnioskujemy o winie gracza, taktyce, party ani historycznym ELO. Nie analizujemy dem.',
+            '**Jak powstają obserwacje**\nSygnały wymagają minimalnej próby, wyraźnej różnicy oraz zgodnego kierunku w dwóch częściach porównania. Karty „Opis próby” pokazują zwykłe ciekawostki, bez oceny istotności. Dla sesji sprawdzamy też różne długości przerw. Nie wymuszamy liczby wniosków ani nie tworzymy osobnej obserwacji dla każdej mapy.',
+            '**Ograniczenia**\nTo analiza eksploracyjna: wybór spośród wielu zależności zwiększa ryzyko przypadkowego wyniku. Przedziały nie są skorygowane o ten wybór; mecze z tej samej sesji mogą być zależne. Potwierdzenie wymaga nowych meczów. Nie wnioskujemy o winie gracza, taktyce, party ani historycznym ELO. Nie analizujemy dem.',
+            '**Relacje z graczami**\nSprawdzamy ograniczoną liczbę najczęstszych współgraczy i wyświetlamy najwyżej jedną kartę danego rodzaju. Dla wyraźnej relacji ADR możemy pobrać dodatkowo historię jednej osoby. Analiza obustronna wymaga zgodności ID meczów i obecności obu graczy w tej samej drużynie.',
             f'**Aktualność**\nDane pobrano <t:{int(self.fetched_at)}:R>. Pamięć podręczna działa przez 15 minut. Godziny: Europe/Warsaw.',
         ]
         sections = (
@@ -419,8 +431,127 @@ class AnalysisReport:
             result[key] = pack_pages(styled)
         return result
 
+    def additional_insights(self):
+        """Explore distinct patterns; label descriptive summaries explicitly."""
+        signals = []
+        facts = []
+        stats = [match for match in self.matches if match.adr is not None]
+
+        # Prefer a longer comparison when it is available. Inspect two paired
+        # subperiods as well; do not choose whichever window looks strongest.
+        window = 100 if len(stats) >= 200 else 50
+        if len(stats) >= window * 2:
+            older, newer = stats[-window * 2:-window], stats[-window:]
+            old_adr, new_adr = average(older, 'adr'), average(newer, 'adr')
+            delta = new_adr - old_adr
+            radius = 1.96 * math.sqrt(stdev([m.adr for m in older]) ** 2 / window +
+                                     stdev([m.adr for m in newer]) ** 2 / window)
+            pieces = [average(newer[i:i + window // 2], 'adr') - average(older[i:i + window // 2], 'adr')
+                      for i in (0, window // 2)]
+            old_kr, new_kr = average(older, 'kr'), average(newer, 'kr')
+            kr_complete = all(m.kr is not None for m in older + newer)
+            direction = 1 if delta > 0 else -1
+            if (abs(delta) >= 5 and abs(delta) > radius and
+                    all(direction * value >= 2 for value in pieces) and kr_complete and
+                    direction * (new_kr - old_kr) >= .03):
+                title = 'Wyższe statystyki w nowszych meczach' if delta > 0 else 'Niższe statystyki w nowszych meczach'
+                block = (f'**{title}**\n'
+                         f'**Poprzednie {window}:** `{fmt(old_adr)} ADR` ▫️ **K/R:** `{fmt(old_kr, 2)}`\n'
+                         f'**Ostatnie {window}:** `{fmt(new_adr)} ADR` ▫️ **K/R:** `{fmt(new_kr, 2)}`\n'
+                         f'**Zmiana ADR:** `{delta:+.1f}` · **WR:** `{fmt(winrate(older))}% → {fmt(winrate(newer))}%`\n'
+                         '-# ADR i K/R zmieniają się w tym samym kierunku; różnica ADR powtarza się w dwóch podokresach.\n'
+                         '-# Porównujemy mecze z dostępnym ADR. Zmiana map i poziomu przeciwników może tłumaczyć wynik.')
+                if window == 100:
+                    short_delta = average(stats[-50:], 'adr') - average(stats[-100:-50], 'adr')
+                    if direction * short_delta <= -3:
+                        block += f'\n-# Krótszy okres pokazuje przeciwny ruch: ostatnie 50 kontra wcześniejsze 50 to {short_delta:+.1f} ADR.'
+                signals.append(block)
+
+            # Results can change much more than the available personal metrics.
+            # Fixed 50-match blocks avoid selecting a favourable cutoff.
+            older50, newer50 = stats[-100:-50], stats[-50:]
+            wr_delta = winrate(newer50) - winrate(older50)
+            adr_delta = average(newer50, 'adr') - average(older50, 'adr')
+            parts = [winrate(newer50[i:i + 25]) - winrate(older50[i:i + 25]) for i in (0, 25)]
+            sign = 1 if wr_delta > 0 else -1
+            if abs(wr_delta) >= 15 and abs(adr_delta) <= 5 and all(sign * value >= 10 for value in parts):
+                title = 'Więcej zwycięstw przy podobnym ADR' if wr_delta > 0 else 'Mniej zwycięstw przy podobnym ADR'
+                signals.append(f'**{title}**\n'
+                               f'**Poprzednie 50:** `{fmt(winrate(older50))}% WR` ▫️ **ADR:** `{fmt(average(older50, "adr"))}`\n'
+                               f'**Ostatnie 50:** `{fmt(winrate(newer50))}% WR` ▫️ **ADR:** `{fmt(average(newer50, "adr"))}`\n'
+                               '-# Kierunek zmiany WR powtarza się w dwóch blokach po 25 meczów.\n'
+                               '-# Wynik drużyny i ADR opisują różne rzeczy; nie wskazuje to winnego ani pecha.')
+
+        scored = [m for m in self.matches if m.own_score is not None and m.opponent_score is not None
+                  and max(m.own_score, m.opponent_score) >= 13 and m.own_score != m.opponent_score]
+        def close(match):
+            return min(match.own_score, match.opponent_score) >= 10
+        tight = [m for m in scored if close(m)]
+        other = [m for m in scored if not close(m)]
+        if (min(len(tight), len(other)) >= 40 and abs(winrate(tight) - winrate(other)) >= 10
+                and stable_contrast(scored, close, False, True)):
+            signals.append(f'**Wyniki meczów na styku różnią się od pozostałych**\n'
+                           f'**13:10–13:11 i dogrywki:** `{fmt(winrate(tight))}% WR` · `{len(tight)} meczów`\n'
+                           f'**Pozostałe wyniki:** `{fmt(winrate(other))}% WR` · `{len(other)} meczów`\n'
+                           '-# Kierunek różnicy powtarza się w obu połowach meczów z prawidłowym wynikiem.\n'
+                           '-# To opis zakończonych spotkań, nie ocena gry pod presją ani prognoza w trakcie meczu.')
+
+        continued = [m for group in self.groups[1:] for m in group if m.previous is not None]
+        after_loss = [m for m in continued if m.previous is False]
+        after_win = [m for m in continued if m.previous is True]
+        if (min(len(after_loss), len(after_win)) >= 40 and abs(winrate(after_loss) - winrate(after_win)) >= 10
+                and stable_contrast(continued, lambda m: m.previous, False, True)):
+            signals.append(f'**Poprzedni wynik wiąże się z różnicą kolejnych wyników**\n'
+                           f'**Po porażce:** `{fmt(winrate(after_loss))}% WR` · `{len(after_loss)} meczów`\n'
+                           f'**Po wygranej:** `{fmt(winrate(after_win))}% WR` · `{len(after_win)} meczów`\n'
+                           '-# Tylko kolejne mecze w tej samej sesji; kierunek utrzymuje się w obu połowach próby.\n'
+                           '-# Nie dowodzi to tiltu ani wpływu poprzedniego wyniku na następny.')
+
+        # Only inspect the most frequent teammate, avoiding a search through
+        # hundreds of names for a chance correlation.
+        mates = Counter(uid for m in self.matches for uid in m.mates)
+        if mates:
+            uid, _ = mates.most_common(1)[0]
+            together = [m for m in self.matches if uid in m.mates]
+            apart = [m for m in self.matches if uid not in m.mates]
+            if (min(len(together), len(apart)) >= 50 and abs(winrate(together) - winrate(apart)) >= 10
+                    and stable_contrast(self.matches, lambda m: uid in m.mates, False, True)):
+                nickname = escaped(together[-1].mates[uid])
+                signals.append(f'**Wyniki z najczęstszym współgraczem**\n'
+                               f'**Z {nickname}:** `{fmt(winrate(together))}% WR` · `{len(together)} meczów`\n'
+                               f'**Bez tej osoby:** `{fmt(winrate(apart))}% WR` · `{len(apart)} meczów`\n'
+                               '-# Kierunek różnicy utrzymuje się w obu połowach historii.\n'
+                               '-# Składy, mapy i przeciwnicy mogą się różnić; obecność nie potwierdza wspólnego party.')
+
+        maps = defaultdict(list)
+        for m in stats:
+            if m.map:
+                maps[m.map].append(m)
+        regular = [(name, group) for name, group in sorted(maps.items(), key=lambda pair: -len(pair[1]))
+                   if len(group) >= 25][:4]
+        if len(regular) >= 3:
+            values = [average(group, 'adr') for _, group in regular]
+            if max(values) - min(values) <= 8:
+                lines = '\n'.join(f'**{escaped(name.removeprefix("de_"))}:** `{fmt(average(group, "adr"))} ADR` · `{len(group)} meczów`'
+                                  for name, group in regular)
+                facts.append(f'**Zbliżone średnie ADR na częstych mapach**\n{lines}\n'
+                             f'-# Opis próby: rozpiętość średnich to {max(values) - min(values):.1f} ADR.\n'
+                             '-# Nie dowodzi jednakowego poziomu na każdej mapie; nie porównujemy tu siły przeciwników.')
+
+        # MR12 halftime 5:7 can be described without claiming an unusual
+        # comeback ability relative to other players.
+        behind = [m for m in self.matches if m.half == 5]
+        if len(behind) >= 30:
+            wins = sum(m.win for m in behind)
+            facts.append(f'**Zwycięstwa po połowie zakończonej 5:7**\n'
+                         f'**Odwrócone wyniki:** `{wins}/{len(behind)}` ▫️ **WR:** `{fmt(winrate(behind))}%`\n'
+                         '-# Opis próby: tyle meczów zakończyło się wygraną mimo straty dwóch rund po połowie.\n'
+                         '-# Bez porównania z innymi graczami nie oceniamy, czy to ponadprzeciętny wynik.')
+        return signals, facts
+
+
     def insights(self):
-        blocks = ['**Obserwacje z tej historii**\nTo wskazówki do sprawdzenia w kolejnych meczach, nie dowody przyczyn. Każda karta dotyczy innego rodzaju zależności.']
+        blocks = ['**Obserwacje z tej historii**\nSygnały wymagają sprawdzenia w nowych meczach. Karty opisowe są oznaczone „Opis próby”; nie wymagają wykrycia silnej zależności.']
         pairs = paired_sessions(self.matches)
         diffs = session_differences(pairs)
         if len(pairs) >= 30:
@@ -481,6 +612,16 @@ class AnalysisReport:
                               f'**{escaped(name.removeprefix("de_"))}** · **ADR:** `{fmt(adr)}` ▫️ **WR:** `{fmt(winrate(group))}%` ▫️ **Mecze:** `{count}`\n'
                               '-# ADR co najmniej taki jak na pozostałych mapach, WR poniżej 50% w obu częściach próby.\n'
                               '-# Nie dowodzi to braku wpływu na rundy — ADR nie opisuje całej gry.')
+        signals, facts = self.additional_insights()
+        for block in signals:
+            # Do not show two competing explanations of teammate effects.
+            if block.startswith('**Wyniki z najczęstszym współgraczem**') and candidates:
+                continue
+            blocks.append(block)
+        blocks.extend(facts)
+        from faceit.analysis_patterns import collect_patterns
+
+        blocks.extend(pattern.text() for pattern in collect_patterns(self))
         if len(blocks) == 1:
             blocks.append('**Brak wyraźnych zależności**\nTa próba nie spełnia warunków dla mocniejszych obserwacji. Zwykłe statystyki znajdziesz w pozostałych kategoriach.')
         return blocks
@@ -630,7 +771,20 @@ def register_analysis_command(tree, guild, faceit_nick_autocomplete):
             return
         try:
             dataset = await get_dataset(fu.FACEIT_API_KEY, nickname)
-            report = AnalysisReport(dataset, load_config()['players'])
+            known_players = load_config()['players']
+            report = AnalysisReport(dataset, known_players)
+            from faceit.analysis_patterns import collect_patterns
+
+            peer = next((card for card in collect_patterns(report) if card.key == 'teammate_adr'), None)
+            if peer and peer.peer_id:
+                peer_nick = next((m.mates[peer.peer_id] for m in reversed(report.matches)
+                                  if peer.peer_id in m.mates), None)
+                if peer_nick and peer_nick.casefold() in {name.casefold() for name in known_players}:
+                    try:
+                        peer_data = await asyncio.wait_for(get_dataset(fu.FACEIT_API_KEY, peer_nick), timeout=30)
+                        report = AnalysisReport(dataset, known_players, (peer_data,))
+                    except (AnalysisError, aiohttp.ClientError, TimeoutError, ValueError, KeyError, TypeError):
+                        logger.info('Optional teammate analysis unavailable for %s', peer_nick)
         except AnalysisError as exc:
             await interaction.followup.send(str(exc), ephemeral=True)
             return
