@@ -75,7 +75,7 @@ class MapsView(discord.ui.LayoutView):
         for index, item in enumerate(self.maps, start=1):
             name = discord.utils.escape_markdown(item['name'])
             map_lines.append(
-                f"**{index}. {name}**\n"
+                f"**{index}\\. {name}**\n"
                 f"WR: **{format_stat(item['winrate'], suffix='%')}** ({item['matches']}) · "
                 f"K/D: **{format_stat(item['kd'], 2)}** · "
                 f"ADR: **{format_stat(item['adr'], 1)}**"
