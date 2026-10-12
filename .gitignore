@@ -79,4 +79,3 @@ hltv.txt.txt
 
 # Local verification scripts
 faceit/test_analysis.py
-faceit/analysis_patterns.py
