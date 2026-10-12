@@ -213,9 +213,11 @@ def result_line(matches):
     return f'**WR:** `{fmt(winrate(matches))}%` ▫️ **W/L:** `{wins}/{len(matches) - wins}` ▫️ **Mecze:** `{len(matches)}`'
 
 
-def metrics_line(matches):
+def metrics_line(matches, *, include_hs=False):
     n = sum(match.adr is not None for match in matches)
     text = f"**ADR:** `{fmt(average(matches, 'adr'))}` ▫️ **K/D:** `{fmt(average(matches, 'kd'), 2)}` ▫️ **K/R:** `{fmt(average(matches, 'kr'), 2)}`"
+    if include_hs:
+        text += f" ▫️ **HS:** `{fmt(average(matches, 'hs'))}%`"
     if n < len(matches):
         text += f'\n-# ADR dostępny w {n} z {len(matches)} meczów.'
     return text
@@ -243,6 +245,7 @@ def pack_pages(blocks, limit=3100):
     current = ''
     block_count = 0
     for block in blocks:
+        block = block.strip()
         # A malformed description must never break Discord's text limit.
         if len(block) > limit:
             block = block[:limit - 1] + '…'
@@ -309,10 +312,8 @@ class AnalysisReport:
 
     def build_sections(self):
         matches = self.matches
-        first, last = matches[0].date, matches[-1].date
         overview = [
-            f'**Wyniki całej próby**\n{result_line(matches)}\n{interval_line(matches)}',
-            f'**Statystyki osobiste**\n{metrics_line(matches)}\n**HS:** `{fmt(average(matches, "hs"))}%`\n-# Średnie z dostępnych statystyk meczowych.',
+            f'**Statystyki osobiste**\n{metrics_line(matches, include_hs=True)}',
         ]
         for count in (20, 50, 100):
             if len(matches) >= count:
@@ -368,7 +369,7 @@ class AnalysisReport:
                 f'Kolejne: **{fmt(mean(mean(m.adr for m in group[1:]) for group in pairs))} ADR**\n'
                 f'Różnica: **{mean(differences):+.1f} ADR**' +
                 (f'\n-# Przedział różnicy 95%: {bounds[0]:+.1f} do {bounds[1]:+.1f} ADR.' if bounds else '') +
-                '\n-# Każda sesja ma taką samą wagę. Mapa, przeciwnicy i skład mogą się różnić.')
+                '\n-# Średnią kolejnych meczów liczymy osobno dla każdej sesji.')
 
         roster_blocks = ['**Współgracze i skład**\nObecność w drużynie nie dowodzi wspólnego party. „Znajomi” to gracze z listy Faceit w konfiguracji bota; brak ich w meczu nie oznacza solo queue.']
         for count in range(5):
@@ -387,15 +388,7 @@ class AnalysisReport:
             without = [m for m in matches if player_id not in m.mates]
             roster_blocks.append(f'**Z {escaped(names[player_id])}**\n{result_line(group)}\n{metrics_line(group)}\n-# Bez tej osoby: {fmt(winrate(without))}% WR ({len(without)} meczów).')
 
-        form_blocks = ['**Forma w czasie**\nPorównujemy wyniki i statystyki, bez rekonstrukcji historycznego ELO. Średnie dotyczą dostępnych pól; poziom przeciwników może się zmieniać.']
-        for label, group in [('Starsza połowa', matches[:len(matches) // 2]), ('Nowsza połowa', matches[len(matches) // 2:])]:
-            if group:
-                form_blocks.append(f'**{label}**\n{result_line(group)}\n{metrics_line(group)}')
-        months = defaultdict(list)
-        for match in matches:
-            months[match.date.strftime('%Y-%m')].append(match)
-        for label, group in sorted(months.items(), reverse=True):
-            form_blocks.append(f'**{label}**\n{result_line(group)}\n{metrics_line(group)}')
+        form_blocks = []
         for previous, label in [(False, 'Następny mecz po porażce'), (True, 'Następny mecz po zwycięstwie')]:
             group = [m for m in supported if m.previous is previous]
             if group:
@@ -409,23 +402,16 @@ class AnalysisReport:
             if group:
                 form_blocks.append(f'**{label}**\n{result_line(group)}')
 
-        sources = [
-            '**Zakres i źródło**\nOficjalne FACEIT Data API. Pobieramy do 500 ostatnich wpisów historii CS2 i do 300 statystyk meczowych. To nie jest pełna historia kariery.',
-            f'**Kompletność danych**\nZakończone mecze 5v5: {len(matches)}. Mapa dostępna: {len(self.details)}. '
-            f'ADR: {sum(m.adr is not None for m in matches)}. K/D: {sum(m.kd is not None for m in matches)}. '
-            f'Pominięte nieprawidłowe wpisy: {self.skipped}.\nBrak pola oznacza brak danych, a nie zero.',
-            '**Jak czytać liczby**\nWR to odsetek wygranych. ADR, K/D, K/R i HS to średnie z dostępnych meczów, bez ważenia długością meczu. Przedziały WR pokazują niepewność przy małej próbie.',
-            '**Jak powstają obserwacje**\nSygnały wymagają minimalnej próby, wyraźnej różnicy oraz zgodnego kierunku w dwóch częściach porównania. Karty opisowe pokazują zwykłe ciekawostki, bez oceny istotności. Dla sesji sprawdzamy też różne długości przerw. Nie wymuszamy liczby wniosków ani nie tworzymy osobnej obserwacji dla każdej mapy.',
-            '**Ograniczenia**\nTo analiza eksploracyjna: wybór spośród wielu zależności zwiększa ryzyko przypadkowego wyniku. Przedziały nie są skorygowane o ten wybór; mecze z tej samej sesji mogą być zależne. Potwierdzenie wymaga nowych meczów. Nie wnioskujemy o winie gracza, taktyce, party ani historycznym ELO. Nie analizujemy dem.',
-            '**Relacje z graczami**\nSprawdzamy ograniczoną liczbę najczęstszych współgraczy i wyświetlamy najwyżej jedną kartę danego rodzaju. Dla wyraźnej relacji ADR możemy pobrać dodatkowo historię jednej osoby. Analiza obustronna wymaga zgodności ID meczów i obecności obu graczy w tej samej drużynie.',
-            f'**Aktualność**\nDane pobrano <t:{int(self.fetched_at)}:R>. Pamięć podręczna działa przez 15 minut. Godziny: Europe/Warsaw.',
-        ]
+        for label, group in [('Starsza połowa historii', matches[:len(matches) // 2]), ('Nowsza połowa historii', matches[len(matches) // 2:])]:
+            if group:
+                form_blocks.append(f'**{label}**\n{result_line(group)}\n{metrics_line(group)}')
+
         insights = self.insights()
-        insights = insights[:1] + random.sample(insights[1:], min(5, len(insights) - 1))
+        insights = random.sample(insights, min(5, len(insights)))
         sections = (
             ('overview', overview), ('maps', map_blocks), ('time', time_blocks),
             ('sessions', session_blocks), ('roster', roster_blocks), ('form', form_blocks),
-            ('insights', insights), ('sources', sources),
+            ('insights', insights),
         )
         result = {}
         for key, blocks in sections:
@@ -434,7 +420,7 @@ class AnalysisReport:
                 heading, separator, body = block.partition('\n')
                 if heading.startswith('**') and heading.endswith('**'):
                     heading = f'### {heading[2:-2]}'
-                if index == 0 and key not in ('overview', 'sources'):
+                if index == 0 and key not in ('overview', 'insights', 'form'):
                     body = '\n'.join(f'-# {line}' for line in body.splitlines())
                 styled.append(heading + separator + body)
             result[key] = pack_pages(styled)
@@ -468,8 +454,7 @@ class AnalysisReport:
                          f'**Poprzednie {window}:** `{fmt(old_adr)} ADR` ▫️ **K/R:** `{fmt(old_kr, 2)}`\n'
                          f'**Ostatnie {window}:** `{fmt(new_adr)} ADR` ▫️ **K/R:** `{fmt(new_kr, 2)}`\n'
                          f'**Zmiana ADR:** `{delta:+.1f}` · **WR:** `{fmt(winrate(older))}% → {fmt(winrate(newer))}%`\n'
-                         '-# ADR i K/R zmieniają się w tym samym kierunku; różnica ADR powtarza się w dwóch podokresach.\n'
-                         '-# Porównujemy mecze z dostępnym ADR. Zmiana map i poziomu przeciwników może tłumaczyć wynik.')
+                         )
                 if window == 100:
                     short_delta = average(stats[-50:], 'adr') - average(stats[-100:-50], 'adr')
                     if direction * short_delta <= -3:
@@ -488,8 +473,7 @@ class AnalysisReport:
                 signals.append(f'**{title}**\n'
                                f'**Poprzednie 50:** `{fmt(winrate(older50))}% WR` ▫️ **ADR:** `{fmt(average(older50, "adr"))}`\n'
                                f'**Ostatnie 50:** `{fmt(winrate(newer50))}% WR` ▫️ **ADR:** `{fmt(average(newer50, "adr"))}`\n'
-                               '-# Kierunek zmiany WR powtarza się w dwóch blokach po 25 meczów.\n'
-                               '-# Wynik drużyny i ADR opisują różne rzeczy; nie wskazuje to winnego ani pecha.')
+                               )
 
         scored = [m for m in self.matches if m.own_score is not None and m.opponent_score is not None
                   and max(m.own_score, m.opponent_score) >= 13 and m.own_score != m.opponent_score]
@@ -502,8 +486,7 @@ class AnalysisReport:
             signals.append(f'**Wyniki meczów na styku różnią się od pozostałych**\n'
                            f'**13:10–13:11 i dogrywki:** `{fmt(winrate(tight))}% WR` · `{len(tight)} meczów`\n'
                            f'**Pozostałe wyniki:** `{fmt(winrate(other))}% WR` · `{len(other)} meczów`\n'
-                           '-# Kierunek różnicy powtarza się w obu połowach meczów z prawidłowym wynikiem.\n'
-                           '-# To opis zakończonych spotkań, nie ocena gry pod presją ani prognoza w trakcie meczu.')
+                           )
 
         continued = [m for group in self.groups[1:] for m in group if m.previous is not None]
         after_loss = [m for m in continued if m.previous is False]
@@ -513,8 +496,8 @@ class AnalysisReport:
             signals.append(f'**Poprzedni wynik wiąże się z różnicą kolejnych wyników**\n'
                            f'**Po porażce:** `{fmt(winrate(after_loss))}% WR` · `{len(after_loss)} meczów`\n'
                            f'**Po wygranej:** `{fmt(winrate(after_win))}% WR` · `{len(after_win)} meczów`\n'
-                           '-# Tylko kolejne mecze w tej samej sesji; kierunek utrzymuje się w obu połowach próby.\n'
-                           '-# Nie dowodzi to tiltu ani wpływu poprzedniego wyniku na następny.')
+                           '-# Tylko kolejne mecze w tej samej sesji.\n'
+                           )
 
         # Only inspect the most frequent teammate, avoiding a search through
         # hundreds of names for a chance correlation.
@@ -529,8 +512,7 @@ class AnalysisReport:
                 signals.append(f'**Wyniki z najczęstszym współgraczem**\n'
                                f'**Z {nickname}:** `{fmt(winrate(together))}% WR` · `{len(together)} meczów`\n'
                                f'**Bez tej osoby:** `{fmt(winrate(apart))}% WR` · `{len(apart)} meczów`\n'
-                               '-# Kierunek różnicy utrzymuje się w obu połowach historii.\n'
-                               '-# Składy, mapy i przeciwnicy mogą się różnić; obecność nie potwierdza wspólnego party.')
+                               )
 
         maps = defaultdict(list)
         for m in stats:
@@ -544,8 +526,8 @@ class AnalysisReport:
                 lines = '\n'.join(f'**{escaped(name.removeprefix("de_"))}:** `{fmt(average(group, "adr"))} ADR` · `{len(group)} meczów`'
                                   for name, group in regular)
                 facts.append(f'**Zbliżone średnie ADR na częstych mapach**\n{lines}\n'
-                             f'-# Opis próby: rozpiętość średnich to {max(values) - min(values):.1f} ADR.\n'
-                             '-# Nie dowodzi jednakowego poziomu na każdej mapie; nie porównujemy tu siły przeciwników.')
+                             f'-# Różnica między najwyższą i najniższą średnią: {max(values) - min(values):.1f} ADR.\n'
+                             )
 
         # MR12 halftime 5:7 can be described without claiming an unusual
         # comeback ability relative to other players.
@@ -554,13 +536,12 @@ class AnalysisReport:
             wins = sum(m.win for m in behind)
             facts.append(f'**Zwycięstwa po połowie zakończonej 5:7**\n'
                          f'**Odwrócone wyniki:** `{wins}/{len(behind)}` ▫️ **WR:** `{fmt(winrate(behind))}%`\n'
-                         '-# Opis próby: tyle meczów zakończyło się wygraną mimo straty dwóch rund po połowie.\n'
-                         '-# Bez porównania z innymi graczami nie oceniamy, czy to ponadprzeciętny wynik.')
+                         )
         return signals, facts
 
 
     def insights(self):
-        blocks = ['**Obserwacje z tej historii**\nSygnały wymagają sprawdzenia w nowych meczach. Karty opisowe pokazują zwykłe statystyki i nie wymagają wykrycia silnej zależności.']
+        blocks = []
         pairs = paired_sessions(self.matches)
         diffs = session_differences(pairs)
         if len(pairs) >= 30:
@@ -575,7 +556,7 @@ class AnalysisReport:
                 blocks.append(f'**{title}**\n**Zmiana ADR:** `{mean(diffs):+.1f}` ▫️ **Sesje:** `{len(pairs)}`\n'
                               f'**Starsza próba:** `{mean(older):+.1f}` ▫️ **Nowsza:** `{mean(newer):+.1f}`\n'
                               '-# Porównanie kolejnych meczów z pierwszym w tych samych sesjach.\n'
-                              '-# Kierunek utrzymuje się przy różnych przerwach; mapa, skład i przeciwnicy mogą to tłumaczyć.')
+                              )
 
         def bucket(match):
             count = self.known_count(match)
@@ -594,8 +575,7 @@ class AnalysisReport:
             blocks.append(f'**Konfiguracja składu wiąże się z różnicą wyników**\n'
                           f'**1–2 znajomych:** `{fmt(winrate(partial))}% WR` · `{len(partial)} meczów`\n'
                           f'**{label.capitalize()}:** `{fmt(winrate(group))}% WR` · `{len(group)} meczów`\n'
-                          '-# Kierunek różnicy utrzymuje się w obu połowach historii.\n'
-                          '-# Nie znamy party ani historycznego poziomu przeciwników; to nie wskazanie winnego.')
+                          )
 
         def late(match):
             return match.date.hour >= 22 or match.date.hour < 6
@@ -605,7 +585,7 @@ class AnalysisReport:
             blocks.append(f'**Wyniki różnią się między porami dnia**\n'
                           f'**22:00–05:59:** `{fmt(winrate(night))}% WR` · `{len(night)} meczów`\n'
                           f'**Pozostałe godziny:** `{fmt(winrate(day))}% WR` · `{len(day)} meczów`\n'
-                          '-# Kierunek utrzymuje się w obu połowach historii. Składy i przeciwnicy mogą się różnić.')
+                          )
 
         # Inspect only the most frequently played map, rather than searching
         # every map for whichever happens to produce the most striking number.
@@ -619,8 +599,8 @@ class AnalysisReport:
             if count >= 50 and adr is not None and baseline is not None and adr >= baseline and winrate(group) <= 47 and repeated:
                 blocks.append(f'**Najczęstsza mapa: dobre liczby, mniej wygranych**\n'
                               f'**{escaped(name.removeprefix("de_"))}** · **ADR:** `{fmt(adr)}` ▫️ **WR:** `{fmt(winrate(group))}%` ▫️ **Mecze:** `{count}`\n'
-                              '-# ADR co najmniej taki jak na pozostałych mapach, WR poniżej 50% w obu częściach próby.\n'
-                              '-# Nie dowodzi to braku wpływu na rundy — ADR nie opisuje całej gry.')
+                              '-# Na tej mapie masz ADR co najmniej taki jak na pozostałych, ale wygrywasz mniej niż połowę meczów.\n'
+                              )
         signals, facts = self.additional_insights()
         for block in signals:
             # Do not show two competing explanations of teammate effects.
@@ -631,7 +611,7 @@ class AnalysisReport:
         from faceit.analysis_patterns import collect_patterns
 
         blocks.extend(pattern.text() for pattern in collect_patterns(self))
-        if len(blocks) == 1:
+        if not blocks:
             blocks.append('**Brak wyraźnych zależności**\nTa próba nie spełnia warunków dla mocniejszych obserwacji. Zwykłe statystyki znajdziesz w pozostałych kategoriach.')
         return blocks
 
@@ -639,7 +619,7 @@ class AnalysisReport:
 SECTIONS = (
     ('overview', '📊 Przegląd'), ('insights', '💡 Obserwacje'), ('maps', '🗺️ Mapy'),
     ('sessions', '🎮 Sesje'), ('roster', '👥 Składy'), ('time', '🕒 Pory grania'),
-    ('form', '📈 Forma i wyniki'), ('sources', 'ℹ️ Dane i ograniczenia'),
+    ('form', '📈 Forma i wyniki'),
 )
 
 
@@ -687,11 +667,15 @@ class AnalysisView(discord.ui.LayoutView):
         title = dict(SECTIONS)[self.section]
         container = discord.ui.Container(accent_color=0xFF5500)
         first, last = self.report.matches[0].date, self.report.matches[-1].date
-        header = discord.ui.TextDisplay(
+        header_text = (
             f'# {self.title_prefix}Analiza [{escaped(player)}]({profile})\n'
             f'**{title}**\n'
             f'-# {first:%d.%m.%Y}–{last:%d.%m.%Y} · {len(self.report.matches)} meczów CS2 5v5'
         )
+        if self.section == 'overview':
+            wins = sum(match.win for match in self.report.matches)
+            header_text += f'\n-# WR: {fmt(winrate(self.report.matches))}% ▫️ W/L: {wins}/{len(self.report.matches) - wins}'
+        header = discord.ui.TextDisplay(header_text)
         avatar = self.report.player.get('avatar')
         if isinstance(avatar, str) and avatar.startswith(('https://', 'http://')):
             container.add_item(discord.ui.Section(header, accessory=discord.ui.Thumbnail(avatar)))

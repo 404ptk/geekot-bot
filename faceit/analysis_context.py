@@ -74,11 +74,13 @@ def collect_context_patterns(report):
         apart = [m for m in stats if uid not in m.mates]
         raw = average(together, 'adr') - average(apart, 'adr')
         nick = escaped(together[-1].mates[uid])
-        candidates.append((abs(delta), Pattern('teammate_matched', f'Z {nick} różnica zostaje po uwzględnieniu map i miesięcy', (
-            f'**Różnica ADR z tą osobą:** `{raw:+.1f}` w całej próbie · `{delta:+.1f}` w porównywalnych grupach',
-            f'**Próby:** `{with_count}` z tą osobą / `{without_count}` bez · `{len(contrasts)}` grup mapa–miesiąc',
-            '-# Porównujemy średnie z tą osobą i bez niej w tych samych mapach i miesiącach; wagą jest liczebność mniejszej grupy.',
-            '-# Kierunek utrzymuje się w obu częściach grup. Pozostały skład i poziom przeciwników nadal nie są kontrolowane.',
+        direction = 'niższy' if delta < 0 else 'wyższy'
+        difference = 'mniej' if delta < 0 else 'więcej'
+        raw_difference = 'mniej' if raw < 0 else 'więcej'
+        candidates.append((abs(delta), Pattern('teammate_matched', f'Z {nick} masz {direction} ADR', (
+            f'Na tych samych mapach i w tych samych miesiącach masz średnio **{abs(delta):.1f} ADR {difference}** niż bez tej osoby.',
+            f'**Porównane mecze:** `{with_count}` z {nick} / `{without_count}` bez.',
+            f'-# W całej pobranej historii: {abs(raw):.1f} ADR {raw_difference}.',
         ))))
     cards.extend(best(candidates))
 
@@ -88,10 +90,11 @@ def collect_context_patterns(report):
     result = supported_rate_difference(eligible, lambda m: m.win, lambda m: m.id in ended_ids, minimum=50, effect=15)
     if result:
         losses, wins, after_loss, after_win = result
-        cards.append(Pattern('stop_result', 'Moment kończenia sesji wiąże się z ostatnim wynikiem', (
+        ending = 'porażce' if after_loss > after_win else 'wygranej'
+        cards.append(Pattern('stop_result', f'Częściej kończysz sesję po {ending}', (
             f'**Sesja kończy się po porażce:** `{after_loss:.1f}%` · `{len(losses)} meczów`',
             f'**Po wygranej:** `{after_win:.1f}%` · `{len(wins)} meczów`',
-            '-# Koniec sesji oznacza brak kolejnego meczu CS2 5v5 w ciągu 90 minut; nie wiemy, czy gracz przestał grać w ogóle.',
+            '-# Koniec sesji: ponad 90 minut przerwy do kolejnego meczu CS2 5v5.',
         )))
     if len(stats) >= 80:
         median = sorted(m.adr for m in stats)[len(stats) // 2]
@@ -99,10 +102,11 @@ def collect_context_patterns(report):
         result = supported_rate_difference(losses, lambda m: m.adr >= median, lambda m: m.id not in ended_ids)
         if result:
             low, high, low_rate, high_rate = result
-            cards.append(Pattern('continue_loss_adr', 'Kontynuowanie po porażce zależy od własnego ADR w tej próbie', (
+            level = 'niższy' if low_rate > high_rate else 'wyższy'
+            cards.append(Pattern('continue_loss_adr', f'Po porażce częściej grasz dalej, gdy masz {level} ADR', (
                 f'**Po porażce z ADR < {median:.1f}:** kolejny mecz w sesji w `{low_rate:.1f}%` przypadków · `{len(low)} meczów`',
                 f'**Z ADR ≥ {median:.1f}:** `{high_rate:.1f}%` · `{len(high)} meczów`',
-                '-# Próg to własna mediana ADR. Nie znamy powodów kontynuowania lub kończenia sesji.',
+                '-# Próg dzieli Twoje mecze na połowę z niższym i połowę z wyższym ADR.',
             )))
 
     scored = [m for m in rows if m.own_score is not None and m.opponent_score is not None
@@ -116,7 +120,7 @@ def collect_context_patterns(report):
             cards.append(Pattern('close_frequency', 'Zmienia się częstość meczów rozstrzyganych na styku', (
                 f'**Bliskie wyniki w poprzednich 50:** `{old_n}/50` · **W ostatnich 50:** `{new_n}/50`',
                 f'**WR tych dwóch bloków:** `{fmt(winrate(old))}% → {fmt(winrate(new))}%`',
-                '-# Bliskie wyniki to 13:10–13:11 i dogrywki. Porównanie obejmuje mecze z wiarygodnym końcowym wynikiem.',
+                '-# Bliskie wyniki: 13:10–13:11 i dogrywki.',
             ), True))
 
     assists = [m for m in stats if m.assists is not None and m.rounds and m.kr is not None]
@@ -126,10 +130,10 @@ def collect_context_patterns(report):
         delta = ar(new) - ar(old)
         if abs(delta) >= .04 and abs(average(new, 'kr') - average(old, 'kr')) <= .04 and all(
                 (ar(new[i:i + 25]) - ar(old[i:i + 25])) * delta > 0 for i in (0, 25)):
-            cards.append(Pattern('assist_profile', 'Asysty zmieniają się przy podobnej liczbie fragów na rundę', (
+            change = 'Więcej' if delta > 0 else 'Mniej'
+            cards.append(Pattern('assist_profile', f'{change} asyst przy podobnym K/R', (
                 f'**Asysty na rundę:** `{ar(old):.2f} → {ar(new):.2f}`',
                 f'**K/R:** `{fmt(average(old, "kr"), 2)} → {fmt(average(new, "kr"), 2)}` · dwa bloki po 50 meczów',
-                '-# Statystyka asyst nie opisuje całej współpracy ani jakości granatów.',
             ), True))
 
     multi = [m for m in stats if m.rounds and m.kr is not None and all(getattr(m, key) is not None for key in ('triples', 'quads', 'pentas'))]
@@ -143,10 +147,11 @@ def collect_context_patterns(report):
             ratio = max(old_rate, new_rate) / min(old_rate, new_rate)
             if ratio >= 1.5 and abs(average(new, 'kr') - average(old, 'kr')) <= .04 and all(
                     (rate(new[i:i + 25]) - rate(old[i:i + 25])) * delta > 0 for i in (0, 25)):
-                cards.append(Pattern('multikill_profile', 'Rundy 3K+ zmieniają się przy podobnym K/R', (
+                change = 'Więcej' if delta > 0 else 'Mniej'
+                cards.append(Pattern('multikill_profile', f'{change} rund 3K+ przy podobnym K/R', (
                     f'**3K+ na 100 rund:** `{old_rate:.2f} → {new_rate:.2f}`',
                     f'**K/R:** `{fmt(average(old, "kr"), 2)} → {fmt(average(new, "kr"), 2)}` · dwa bloki po 50 meczów',
-                    '-# Częstotliwość uwzględnia długość meczów. To rozkład fragów między rundami, nie ocena ich znaczenia.',
+                    '-# 3K+: co najmniej trzy fragi w jednej rundzie.',
                 ), True))
 
     if len(stats) >= 200:
@@ -174,8 +179,7 @@ def collect_context_patterns(report):
                     f'**Zmiana w dwóch blokach po 100:** `{raw:+.1f} ADR`',
                     f'**Tylko wspólne mapy:** `{common_raw:+.1f} ADR` · `{len(old_common)}/{len(new_common)} meczów`',
                     f'**Identyczne wagi tych map:** `{adjusted:+.1f} ADR` · `{len(common)} mapy`',
-                    '-# Uwzględniamy mapy z co najmniej 10 meczami w obu blokach i identycznymi wagami po obu stronach.',
-                    '-# To opisowe przeliczenie, nie kontrola składów ani poziomu przeciwników. Nie obejmuje map z małą próbą.',
+                    '-# Wspólne mapy: co najmniej 10 meczów w każdym z dwóch bloków.',
                 ), True))
 
     own_id = report.player['player_id']
@@ -208,10 +212,11 @@ def collect_context_patterns(report):
         if any(part is None or part * value <= 0 for part in halves):
             continue
         nick = escaped(dataset['player']['nickname'])
-        cards.append(Pattern('paired_correlation', f'Osobiste statystyki duetu z {nick} są powiązane', (
+        title = (f'Twój ADR rośnie razem z ADR {nick}' if value > 0 else
+                 f'Twój ADR jest wyższy, gdy {nick} ma niższy')
+        cards.append(Pattern('paired_correlation', title, (
             f'**Korelacja ADR:** `{value:+.2f}` · `{len(pairs)} wspólnych meczów`',
             f'**W wygranych:** `{per_outcome[1]:+.2f}` · **W porażkach:** `{per_outcome[0]:+.2f}`',
-            '-# Korelacja główna odejmuje średnią różnicę między wygranymi i porażkami. Dodatnia oznacza zbieżny ruch, ujemna przeciwny.',
-            '-# Nie dowodzi synergii, zmiany ról ani odbierania sobie fragów.',
+            '-# Dodatnia korelacja: wyższy ADR jednej osoby zwykle towarzyszy wyższemu ADR drugiej. Ujemna: przeciwny kierunek.',
         )))
     return cards

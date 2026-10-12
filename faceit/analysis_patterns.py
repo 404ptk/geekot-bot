@@ -17,7 +17,7 @@ class Pattern:
     peer_id: str | None = None
 
     def text(self):
-        return f'**{self.title}**\n' + '\n'.join(self.lines)
+        return f'**{self.title}**\n' + '\n'.join(line for line in self.lines if line.strip())
 
 
 # Each entry is a distinct question, not a variant for another name or map.
@@ -117,9 +117,9 @@ def collect_patterns(report):
                 continue
             apart, together, delta = result
             nick = escaped(together[-1].mates[uid])
-            candidates.append((abs(delta), Pattern(key, f'{metric.upper()} w meczach z {nick}', (
+            direction = 'wyższy' if delta > 0 else 'niższy'
+            candidates.append((abs(delta), Pattern(key, f'Z {nick} masz {direction} {metric.upper()}', (
                 compare_line(f'Z {nick}', together, metric), compare_line('Bez tej osoby', apart, metric),
-                f'-# Różnica {delta:+.1f}; kierunek powtarza się w obu częściach historii. Obecność nie potwierdza wspólnego party.',
             ), peer_id=uid)))
         cards.extend(best(candidates))
 
@@ -145,7 +145,6 @@ def collect_patterns(report):
                 f'**{own}:** `{fmt(average(shared, "adr"))} ADR` · poza tym składem `{fmt(average(own_other, "adr"))}`',
                 f'**{nick}:** `{fmt(average(peer_shared, "adr"))} ADR` · poza tym składem `{fmt(average(peer_other, "adr"))}`',
                 f'-# Dokładnie {len(shared)} wspólnych ID meczów. Porównania poza wspólnym składem: {len(own_other)}/{len(peer_other)} meczów.',
-                '-# Historia i poziom przeciwników poza wspólnymi meczami mogą być różne. To nie dowód zmiany ról ani odbierania sobie fragów.',
             ), True))
             break
 
@@ -161,7 +160,7 @@ def collect_patterns(report):
                 candidates.append((abs(delta - elsewhere[2]), Pattern('teammate_map', f'Z {nick} zależność zmienia się między mapami', (
                     f'**{escaped(name.removeprefix("de_"))}:** `{delta:+.1f} ADR` z tą osobą względem meczów bez niej',
                     f'**Pozostałe mapy:** `{elsewhere[2]:+.1f} ADR`',
-                    f'-# Próby: {len(together)}/{len(apart)} na mapie, {len(elsewhere[1])}/{len(elsewhere[0])} poza nią. Kierunki utrzymują się w częściach prób.',
+                    f'-# Mecze z tą osobą / bez niej: {len(together)}/{len(apart)} na tej mapie, {len(elsewhere[1])}/{len(elsewhere[0])} na pozostałych.',
                 ))))
     cards.extend(best(candidates))
 
@@ -176,7 +175,6 @@ def collect_patterns(report):
             candidates.append((abs(a[2] - b[2]), Pattern('teammate_session', f'Przebieg sesji różni się z {nick}', (
                 f'**Zmiana ADR z tą osobą:** `{a[2]:+.1f}` · **Bez niej:** `{b[2]:+.1f}`',
                 f'-# Mecz 2–3 kontra pierwszy: próby z tą osobą {len(a[1])}/{len(a[0])}, bez niej {len(b[1])}/{len(b[0])}.',
-                '-# To porównanie grup meczów, nie tych samych sesji; nie dowodzi wpływu współgracza.',
             ))))
     cards.extend(best(candidates))
 
@@ -191,7 +189,6 @@ def collect_patterns(report):
             candidates.append((abs(delta), Pattern('duo_combination', title, (
                 f'**Obie osoby:** `{fmt(winrate(both))}% WR` · `{len(both)} meczów`',
                 f'**Tylko jedna z nich:** `{fmt(winrate(single))}% WR` · `{len(single)} meczów`',
-                '-# Nie porównujemy do meczów bez obu osób. Pozostały skład i poziom przeciwników nie są kontrolowane.',
             ))))
     cards.extend(best(candidates))
 
@@ -200,7 +197,7 @@ def collect_patterns(report):
         same, changed, _ = result
         cards.append(Pattern('lineup_change', 'Statystyki różnią się po zmianie składu w sesji', (
             compare_line('Skład bez zmian', same), compare_line('Co najmniej jedna zmiana', changed),
-            '-# Porównujemy kolejne mecze w sesji; nie znamy przyczyny zmiany składu.',
+            '-# Tylko kolejne mecze w tej samej sesji.',
         )))
 
     candidates = []
@@ -211,7 +208,6 @@ def collect_patterns(report):
             candidates.append((abs(a[2] - b[2]), Pattern('map_session', 'Przebieg sesji różni się między mapami', (
                 f'**{escaped(name.removeprefix("de_"))}:** `{a[2]:+.1f} ADR` · **Pozostałe mapy:** `{b[2]:+.1f}`',
                 f'-# Mecz 3+ kontra 1–2; próby {len(a[1])}/{len(a[0])} i {len(b[1])}/{len(b[0])}.',
-                '-# To grupy spotkań, nie dowód zmęczenia ani porównanie tych samych sesji.',
             ))))
     cards.extend(best(candidates))
 
@@ -233,7 +229,7 @@ def collect_patterns(report):
             cards.append(Pattern('break', 'Zmiana ADR różni się po krótkiej przerwie', (
                 f'**Przerwa 15–90 min:** `{mean(rested):+.1f} ADR` · `{len(rested)} przejść`',
                 f'**Przerwa poniżej 15 min:** `{mean(quick):+.1f} ADR` · `{len(quick)} przejść`',
-                '-# Zmiana względem poprzedniego meczu; nie dowodzi, że przerwa poprawiła lub pogorszyła grę.',
+                '-# Zmiana ADR względem poprzedniego meczu.',
             )))
 
     returns = [m for p, m in zip(rows, rows[1:]) if m.start - p.end >= 7 * 86400 and m.adr is not None]
@@ -241,7 +237,6 @@ def collect_patterns(report):
     if len(returns) >= 8 and len(regular_starts) >= 20:
         cards.append(Pattern('return', 'Pierwsze mecze po tygodniu bez gry na Faceicie', (
             compare_line('Powroty po co najmniej 7 dniach', returns), compare_line('Pozostałe początki sesji', regular_starts),
-            '-# Nie wiemy, czy w przerwie gracz trenował lub grał poza Faceitem.',
         ), True))
 
     streaks = {}
@@ -276,7 +271,7 @@ def collect_patterns(report):
                 cards.append(Pattern('cold_start', 'Drugi mecz po słabym początku sesji', (
                     f'**Po pierwszym z ADR ≤ {quartile:.1f}:** `{fmt(winrate(cold))}% WR` · `{len(cold)} meczów`',
                     f'**Po pozostałych początkach:** `{fmt(winrate(other))}% WR` · `{len(other)} meczów`',
-                    '-# Słaby początek to dolna ćwiartka własnego ADR, nie arbitralny próg dla wszystkich.',
+                    '-# Słaby początek: ADR wśród 25% Twoich najniższych wyników.',
                 )))
 
     if len(stats) >= 100:
@@ -289,7 +284,7 @@ def collect_patterns(report):
                 cards.append(Pattern('variability', 'Zmienia się regularność osobistych wyników', (
                     f'**Rozrzut ADR, poprzednie 50:** `{old_sd:.1f}` · **Ostatnie 50:** `{new_sd:.1f}`',
                     f'**Średnie ADR:** `{mean(old_values):.1f} → {mean(new_values):.1f}`',
-                    '-# Rozrzut to odchylenie standardowe. Mniejszy rozrzut nie musi oznaczać lepszej gry.',
+                    '-# Mniejszy rozrzut oznacza bardziej zbliżony ADR między meczami.',
                 ), True))
         baseline = sorted(old_values)[len(old_values) // 4]
         old_low = sum(v <= baseline for v in old_values)
@@ -299,7 +294,7 @@ def collect_patterns(report):
             if all((sum(v <= baseline for v in new_values[i:i + 25]) - sum(v <= baseline for v in old_values[i:i + 25])) * direction > 0 for i in (0, 25)):
                 cards.append(Pattern('low_games', 'Zmienia się liczba meczów poniżej własnej normy', (
                     f'**ADR ≤ {baseline:.1f}:** `{old_low}/50 → {new_low}/50 meczów`',
-                    '-# Próg wyznacza dolna ćwiartka poprzednich 50 meczów; sprawdzamy go na kolejnych 50.',
+                    '-# Próg wyznacza 25% najniższych ADR z poprzednich 50 meczów.',
                 ), True))
         hs_rows = [m for m in stats if m.hs is not None and m.kr is not None]
         if len(hs_rows) >= 100:
@@ -310,7 +305,6 @@ def collect_patterns(report):
                 cards.append(Pattern('hs_profile', 'Udział headshotów zmienia się przy podobnym K/R', (
                     f'**HS:** `{fmt(average(old, "hs"))}% → {fmt(average(new, "hs"))}%`',
                     f'**K/R:** `{fmt(average(old, "kr"), 2)} → {fmt(average(new, "kr"), 2)}`',
-                    '-# Większy udział HS nie musi oznaczać lepszego celowania; może zmienić się dobór broni.',
                 ), True))
         survival = [m for m in stats if m.deaths is not None and m.rounds and m.kr is not None]
         if len(survival) >= 100:
@@ -322,7 +316,6 @@ def collect_patterns(report):
                 cards.append(Pattern('survival', 'Częstotliwość śmierci zmienia się przy podobnym K/R', (
                     f'**Śmierci na rundę:** `{old_dr:.2f} → {new_dr:.2f}`',
                     f'**K/R:** `{fmt(average(old, "kr"), 2)} → {fmt(average(new, "kr"), 2)}`',
-                    '-# Mniej śmierci nie dowodzi lepszego ustawienia ani większej wartości dla drużyny.',
                 ), True))
 
     multis = [m for m in rows if all(getattr(m, key) is not None for key in ('doubles', 'triples', 'quads', 'pentas'))]
@@ -351,7 +344,6 @@ def collect_patterns(report):
         cards.append(Pattern('lead_conversion', 'Utrzymywanie wyraźnego prowadzenia po połowie', (
             f'**Przy prowadzeniu ≥ 8:4:** `{fmt(winrate(lead))}% WR` · `{len(lead)} meczów`',
             f'**Mecze zakończone porażką:** `{losses}/{len(lead)}`',
-            '-# To własna częstość w tej próbie, bez oceny względem innych graczy.',
         ), True))
 
     mapped = [m for m in rows if m.map]
@@ -364,7 +356,6 @@ def collect_patterns(report):
             cards.append(Pattern('map_pool', 'Zmienia się rozkład granych map', (
                 f'**Poprzednie 50:** najczęściej {escaped(old_name.removeprefix("de_"))} · `{old_n}/50`',
                 f'**Ostatnie 50:** najczęściej {escaped(new_name.removeprefix("de_"))} · `{new_n}/50`',
-                '-# Rozkład map może tłumaczyć część zmian ogólnych statystyk. Nie znamy głosowań veto.',
             ), True))
 
     opponents = Counter(uid for m in rows for uid in m.opponents)
