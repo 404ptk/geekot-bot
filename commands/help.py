@@ -1,66 +1,162 @@
 import discord
 from discord import app_commands
 import json
+import logging
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
+
+HIDDEN_HELP_COMMANDS = {"wspomnienie", "wspomnienia", "ytshorts"}
+
+HELP_CATEGORIES = (
+    ("faceit", "🎮 Faceit", "Profile, mapy, mecze i porównania", {"faceit", "maps", "last", "compare", "discordfaceit", "scout", "sieroty"}),
+    ("cs2", "🎯 CS2", "Instanty, wyzwania i ceny skrzynek", {"instant", "wyzwania", "skrzynki"}),
+    ("masny", "📊 Masny", "Tabela, wymówki i spawn", {"masny", "resetmasny", "wymowki", "spawn"}),
+    ("games", "🕹️ Gry i wyjazdy", "Lista gier, Minecraft i wakacje", {"gry", "ile", "ilereset", "wakacje"}),
+    ("community", "👥 Serwer i relacje", "Aktywność, ranking, avatary i relacje", {"aktywnosc", "ranking", "avatar", "relacje", "zgoda", "dodajrelacje"}),
+    ("admin", "⚙️ Moderacja i konfiguracja", "Kanały, ustawienia, oferty i komendy slash", {"config", "zamknij", "otworz", "czysc", "sync", "guildsync", "clearcmds", "clearglobalcmds", "slashlist", "gslashlist", "ofertyfiltry"}),
+    ("other", "📜 Pomoc i pozostałe", "Pomoc, changelog i inne komendy", set()),
+)
+
+
+def help_pages(commands):
+    """Build bounded pages from the registered commands, including subcommands."""
+    blocks = []
+
+    def append_command(command):
+        if isinstance(command, app_commands.Group):
+            for child in command.commands:
+                append_command(child)
+            return
+        if not isinstance(command, app_commands.Command):
+            return
+        parameters = " ".join(
+            f"<{parameter.display_name}>" if parameter.required else f"[{parameter.display_name}]"
+            for parameter in command.parameters
+        )
+        signature = f"/{command.qualified_name} {parameters}".rstrip()
+        blocks.append(f"**`{signature}`**\n{command.description}")
+
+    for command in commands:
+        append_command(command)
+    pages = []
+    current = ""
+    for block in blocks:
+        if current and len(current) + len(block) + 2 > 3500:
+            pages.append(current)
+            current = ""
+        current = f"{current}\n\n{block}" if current else block
+    if current:
+        pages.append(current)
+    return pages or ["Brak zarejestrowanych komend w tej kategorii."]
+
+
+class HelpSelect(discord.ui.Select):
+    def __init__(self, selected):
+        options = [discord.SelectOption(label="📜 Wszystkie kategorie", value="home", default=selected == "home")]
+        options.extend(discord.SelectOption(label=title, value=key, description=description, default=selected == key)
+                       for key, title, description, _ in HELP_CATEGORIES)
+        super().__init__(placeholder="Wybierz kategorię pomocy…", options=options)
+
+    async def callback(self, interaction):
+        self.view.category = self.values[0]
+        self.view.page = 0
+        self.view.render()
+        await interaction.response.edit_message(view=self.view, allowed_mentions=discord.AllowedMentions.none())
+
+
+class HelpPageButton(discord.ui.Button):
+    def __init__(self, direction, disabled):
+        super().__init__(label="Poprzednia" if direction < 0 else "Następna",
+                         style=discord.ButtonStyle.secondary, disabled=disabled)
+        self.direction = direction
+
+    async def callback(self, interaction):
+        self.view.page += self.direction
+        self.view.render()
+        await interaction.response.edit_message(view=self.view, allowed_mentions=discord.AllowedMentions.none())
+
+
+class HelpView(discord.ui.LayoutView):
+    def __init__(self, owner_id, commands):
+        super().__init__(timeout=600)
+        commands = [command for command in commands if command.name not in HIDDEN_HELP_COMMANDS]
+        self.owner_id = owner_id
+        self.message = None
+        self.category = "home"
+        self.page = 0
+        assigned = set().union(*(entry[3] for entry in HELP_CATEGORIES))
+        self.pages = {
+            key: help_pages([command for command in commands
+                             if command.name in names or (key == "other" and command.name not in assigned)])
+            for key, _, _, names in HELP_CATEGORIES
+        }
+        self.render()
+
+    def render(self):
+        self.clear_items()
+        container = discord.ui.Container(accent_color=0x5865F2)
+        if self.category == "home":
+            container.add_item(discord.ui.TextDisplay("## 📜 Pomoc Geekota\nWybierz kategorię, aby zobaczyć komendy i sposób ich użycia."))
+            container.add_item(discord.ui.Separator())
+            container.add_item(discord.ui.TextDisplay("\n\n".join(
+                f"**{title}**\n{description}" for _, title, description, _ in HELP_CATEGORIES)))
+        else:
+            _, title, description, _ = next(entry for entry in HELP_CATEGORIES if entry[0] == self.category)
+            pages = self.pages[self.category]
+            self.page = max(0, min(self.page, len(pages) - 1))
+            container.add_item(discord.ui.TextDisplay(f"## {title}\n{description}"))
+            container.add_item(discord.ui.Separator())
+            container.add_item(discord.ui.TextDisplay(pages[self.page]))
+            if len(pages) > 1:
+                container.add_item(discord.ui.TextDisplay(f"-# Strona {self.page + 1} z {len(pages)}"))
+                container.add_item(discord.ui.ActionRow(
+                    HelpPageButton(-1, self.page == 0), HelpPageButton(1, self.page == len(pages) - 1)))
+        container.add_item(discord.ui.Separator())
+        container.add_item(discord.ui.ActionRow(HelpSelect(self.category)))
+        self.footer = discord.ui.TextDisplay(
+            "-# <parametr> — wymagany • [parametr] — opcjonalny\n"
+            "-# Dostęp do komend zależy od Twoich uprawnień. Panel prywatny • wygasa po 10 minutach bezczynności")
+        container.add_item(self.footer)
+        self.add_item(container)
+
+    async def interaction_check(self, interaction):
+        if interaction.user.id == self.owner_id:
+            return True
+        await interaction.response.send_message("Otwórz własny panel przez /pomoc.", ephemeral=True)
+        return False
+
+    async def on_timeout(self):
+        for item in self.walk_children():
+            if isinstance(item, (discord.ui.Button, discord.ui.Select)):
+                item.disabled = True
+        self.footer.content = "-# Panel wygasł. Wpisz /pomoc, aby otworzyć go ponownie."
+        if self.message:
+            try:
+                await self.message.edit(view=self, allowed_mentions=discord.AllowedMentions.none())
+            except discord.HTTPException:
+                pass
+
+    async def on_error(self, interaction, error, item):
+        logger.error("Help panel error", exc_info=(type(error), error, error.__traceback__))
+        message = "Nie udało się wyświetlić pomocy. Otwórz panel ponownie przez /pomoc."
+        if interaction.response.is_done():
+            await interaction.followup.send(message, ephemeral=True)
+        else:
+            await interaction.response.send_message(message, ephemeral=True)
+
 
 async def setup_help_commands(client: discord.Client, tree: app_commands.CommandTree, guild_id: int = None):
     guild = discord.Object(id=guild_id) if guild_id else None
-    
-    # Helper function to create help embed that will be reused across different commands
-    def create_help_embed():
-        
-        user = client.get_user(1293142451007131740)
-        avatar_url = user.display_avatar.url if user else None
-        
-        embed = discord.Embed(
-            title="📜 Dostępne komendy",
-            description="Lista komend dostępnych na serwerze:",
-            color=discord.Color.blue()
-        )
-        embed.add_field(name="🎮 **Faceit**", value="Sprawdź statystyki graczy na platformie Faceit:\n"
-            "`/faceit [nick]` - Statystyki profilu [nick]\n"
-            "`/maps [nick]` - Statystyki map CS2 według winrate\n"
-            "`/discordfaceit` - Statystyki discorda na Faceicie\n"
-            "`/last [nick]` - Statystyki drużyny gracza w ostatnim meczu", inline=False)
-        
-        embed.add_field(name="📊 **Tabela Masnego**", value="Śledź i aktualizuj tabelę Masnego na Faceit:\n"
-            "`/masny (opcjonalnie: [-X/X])` - Tabela Masnego\n"
-            "`/resetmasny` - Resetowanie tabeli", inline=False)
-        
-        embed.add_field(name="🎭 **Wymówki Masnego**", value="Zarządzaj kolekcją słynnych wymówek Masnego:\n"
-            "`/wymowki [losuj/dodaj/lista/pomoc/usun]`", inline=False)
-        
-        embed.add_field(name="🚀 **Spawn Masnego**", value="Spraw aby Masny był online:\n"
-            "`/spawn (opcjonalnie: [godzina])`", inline=False)
-        
-        embed.add_field(name="🎯 **CS2**", value="Przeglądaj dostępne szybkie komendy dla CS2:\n"
-            "`/instant [mapa]`", inline=False)
-        
-        embed.add_field(name="🔥 **Wyzwania CS2**",
-            value="Dodawaj i losuj wyzwania do wykonania w grze CS2:\n"
-            "`/wyzwania [lista/dodaj/losuj/pomoc/usun]`", inline=False)
-        
-        embed.add_field(name="🎮 **Gry do zagrania**", value="*Zarządzaj listą gier, w które chcecie zagrać:*\n"
-                        "`/gry [dodaj/dodajopis/edytujopis/lista/pomoc/usun]`", inline=False)
 
-        embed.add_field(name="🎙️ **Aktywność VC**", value=
-            "Heatmapa obecności na kanałach głosowych z ostatnich 30 dni:\n"
-            "`/aktywnosc` — Twoja aktywność\n"
-            "`/aktywnosc [nick]` — Aktywność wybranego użytkownika", inline=False)
-        
-        embed.add_field(name="🔒 **Archiwum kanałów**", value=
-            "Dla high tier guard i mid tier guard:\n"
-            "`/zamknij [kanał]` — Archiwizuje kanał i blokuje pisanie\n"
-            "`/otworz [kanał]` — Przywraca kategorię i zapisane ustawienia", inline=False)
-
-        embed.add_field(name="📝 **Changelog**", value="Najnowsze zmiany w bocie:\n"
-                        "`/changelog`", inline=False)
-        
-        if avatar_url:
-            embed.set_thumbnail(url=avatar_url)
-        
-        embed.set_footer(text="Geekot - Jestem geekiem, największym geekiem 🎮")
-        return embed
+    async def send_help(interaction):
+        # Guild commands override global commands with the same name.
+        commands = {command.name: command for command in tree.get_commands()}
+        if interaction.guild_id:
+            commands.update({command.name: command for command in tree.get_commands(guild=discord.Object(id=interaction.guild_id))})
+        view = HelpView(interaction.user.id, list(commands.values()))
+        await interaction.response.send_message(view=view, ephemeral=True, allowed_mentions=discord.AllowedMentions.none())
+        view.message = await interaction.original_response()
 
     # --- Changelog: łatwy do edycji format (grupowanie zmian per data) ---
     project_root = Path(__file__).resolve().parent.parent
@@ -133,29 +229,29 @@ async def setup_help_commands(client: discord.Client, tree: app_commands.Command
     # Original pomoc command
     @tree.command(
         name="pomoc",
-        description="Wyświetla listę dostępnych komend",
+        description="Otwiera panel pomocy z wyborem kategorii",
         guild=guild
     )
     async def pomoc(interaction: discord.Interaction):
-        await interaction.response.send_message(embed=create_help_embed())
+        await send_help(interaction)
         
     # Add geek as an alias for pomoc
     @tree.command(
         name="geek",
-        description="Wyświetla listę dostępnych komend",
+        description="Otwiera panel pomocy z wyborem kategorii",
         guild=guild
     )
     async def geek(interaction: discord.Interaction):
-        await interaction.response.send_message(embed=create_help_embed())
+        await send_help(interaction)
         
     # Add help as an alias for pomoc
     @tree.command(
         name="help",
-        description="Wyświetla listę dostępnych komend",
+        description="Otwiera panel pomocy z wyborem kategorii",
         guild=guild
     )
     async def help(interaction: discord.Interaction):
-        await interaction.response.send_message(embed=create_help_embed())
+        await send_help(interaction)
 
     # Slash command: changelog
     @tree.command(
