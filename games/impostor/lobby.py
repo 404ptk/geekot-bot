@@ -9,6 +9,7 @@ from discord import app_commands
 from games.impostor.dictionaries import (
     count_words_without_hints,
     create_dictionary,
+    delete_dictionary,
     list_dictionaries,
     update_dictionary,
 )
@@ -17,7 +18,9 @@ logger = logging.getLogger(__name__)
 LOBBY_TIMEOUT = 600
 LOGO_FILE = Path(__file__).resolve().with_name('logo.webp')
 LOGO_FILENAME = 'impostor_logo.webp'
-DICTIONARIES = {'custom': 'Customowe', 'standard': 'Zwyczajne'}
+STANDARD_DICTIONARY_ID = 'standard'
+STANDARD_DICTIONARY_NAME = 'Zwyczajne'
+CUSTOM_DICTIONARIES_PER_PAGE = 24
 # One open lobby per channel; separate channels can host separate groups.
 LOBBIES = {}
 _CREATE_LOCK = asyncio.Lock()
@@ -27,8 +30,16 @@ def impostor_count(players):
     return 1 if players <= 5 else 2 if players <= 8 else 3
 
 
-def dictionary_names(selected):
-    return ', '.join(label for key, label in DICTIONARIES.items() if key in selected)
+def dictionary_names(selected, guild_id):
+    selected = set(selected)
+    records = list_dictionaries(guild_id)
+    names = [STANDARD_DICTIONARY_NAME] if STANDARD_DICTIONARY_ID in selected else []
+    names.extend(record['name'] for record in records if record['id'] in selected)
+    if not names:
+        return 'Brak'
+    if len(names) > 5:
+        return ', '.join(names[:5]) + f' i {len(names) - 5} innych'
+    return ', '.join(names)
 
 
 def logo_file():
@@ -62,14 +73,16 @@ class Lobby:
     def __init__(self, guild_id, channel_id, owner_id, capacity, hints, dictionaries=('standard',)):
         if not 3 <= capacity <= 10:
             raise ValueError('Lobby musi mieć od 3 do 10 graczy.')
-        if not dictionaries or not set(dictionaries) <= DICTIONARIES.keys():
+        available = {STANDARD_DICTIONARY_ID} | {record['id'] for record in list_dictionaries(guild_id)}
+        if not dictionaries or not set(dictionaries) <= available:
             raise ValueError('Wybierz przynajmniej jeden dostępny słownik.')
         self.key = (guild_id, channel_id)
         self.owner_id = owner_id
         self.capacity = capacity
         self.impostors = impostor_count(capacity)
         self.hints = hints
-        self.dictionaries = tuple(key for key in DICTIONARIES if key in dictionaries)
+        self.dictionaries = tuple(key for key in [STANDARD_DICTIONARY_ID, *(record['id'] for record in list_dictionaries(guild_id))]
+                                  if key in dictionaries)
         self.players = [owner_id]
         self.state = 'waiting'
         self.message = None
@@ -195,7 +208,7 @@ class LobbyView(ImpostorView):
             f'**Twórca:** <@{lobby.owner_id}>\n'
             f'**Gracze:** `{len(lobby.players)}/{lobby.capacity}` ▫️ **Impostorzy:** `{lobby.impostors}`\n'
             f'**Podpowiedzi:** `{"Tak" if lobby.hints else "Nie"}`\n'
-            f'**Słowniki:** `{dictionary_names(lobby.dictionaries)}`'
+            f'**Słowniki:** `{dictionary_names(lobby.dictionaries, lobby.key[0])}`'
         ))
         container.add_item(discord.ui.Separator())
         container.add_item(discord.ui.TextDisplay('### Gracze\n' + '\n'.join(f'👤 <@{user_id}>' for user_id in lobby.players)))
@@ -249,16 +262,30 @@ class HintsSelect(discord.ui.Select):
 
 
 class DictionarySelect(discord.ui.Select):
-    def __init__(self, selected):
-        super().__init__(placeholder='Wybierz słowniki — można zaznaczyć oba', min_values=1,
-                         max_values=len(DICTIONARIES), options=[
-            discord.SelectOption(label=label, value=key, default=key in selected)
-            for key, label in DICTIONARIES.items()
-        ])
+    def __init__(self, records, selected, page):
+        self.page_records = records[page * CUSTOM_DICTIONARIES_PER_PAGE:
+                                    (page + 1) * CUSTOM_DICTIONARIES_PER_PAGE]
+        options = [discord.SelectOption(
+            label=STANDARD_DICTIONARY_NAME,
+            value=STANDARD_DICTIONARY_ID,
+            description='400 wbudowanych haseł',
+            default=STANDARD_DICTIONARY_ID in selected,
+        )]
+        options.extend(discord.SelectOption(
+            label=record['name'], value=record['id'],
+            description=f'{len(record["words"])} haseł', default=record['id'] in selected,
+        ) for record in self.page_records)
+        super().__init__(placeholder='Wybierz konkretne słowniki', min_values=0,
+                         max_values=len(options), options=options)
 
     async def callback(self, interaction):
         view = self.view
-        view.dictionaries = tuple(key for key in DICTIONARIES if key in self.values)
+        selected = set(view.dictionaries)
+        visible = {option.value for option in self.options}
+        selected.difference_update(visible)
+        selected.update(self.values)
+        available = [STANDARD_DICTIONARY_ID, *(record['id'] for record in list_dictionaries(view.key[0]))]
+        view.dictionaries = tuple(key for key in available if key in selected)
         view.render()
         await interaction.response.edit_message(view=view, allowed_mentions=discord.AllowedMentions.none())
 
@@ -325,6 +352,8 @@ class ImpostorPanel(ImpostorView):
         self.hints = False
         self.dictionaries = ('standard',)
         self.dictionary_page = 0
+        self.dictionary_select_page = 0
+        self.selected_dictionary_id = None
         self.dictionary_name_draft = ''
         self.dictionary_words_draft = ''
         self.message = None
@@ -336,21 +365,71 @@ class ImpostorPanel(ImpostorView):
         add_logo(container)
         container.add_item(discord.ui.Separator())
         if self.screen == 'create':
+            available_ids = {record['id'] for record in list_dictionaries(self.key[0])}
+            self.dictionaries = tuple(key for key in self.dictionaries
+                                      if key == STANDARD_DICTIONARY_ID or key in available_ids)
             container.add_item(discord.ui.TextDisplay(
                 '# 🎭 Stwórz lobby\nWybierz liczbę graczy, podpowiedzi i słowniki.\n'
                 f'**Gracze:** `{self.capacity}` ▫️ **Impostorzy:** `{impostor_count(self.capacity)}`\n'
                 f'**Podpowiedzi:** `{"Tak" if self.hints else "Nie"}`\n'
-                f'**Słowniki:** `{dictionary_names(self.dictionaries)}`\n'
+                f'**Słowniki:** `{dictionary_names(self.dictionaries, self.key[0])}`\n'
                 '-# Liczba graczy obejmuje Ciebie — twórca dołącza automatycznie.'
             ))
             container.add_item(discord.ui.Separator())
             container.add_item(discord.ui.ActionRow(PlayerCountSelect(self.capacity)))
             container.add_item(discord.ui.ActionRow(HintsSelect(self.hints)))
-            container.add_item(discord.ui.ActionRow(DictionarySelect(self.dictionaries)))
+            records = list_dictionaries(self.key[0])
+            select_pages = max(1, (len(records) + CUSTOM_DICTIONARIES_PER_PAGE - 1) // CUSTOM_DICTIONARIES_PER_PAGE)
+            self.dictionary_select_page = max(0, min(self.dictionary_select_page, select_pages - 1))
+            container.add_item(discord.ui.ActionRow(
+                DictionarySelect(records, self.dictionaries, self.dictionary_select_page)
+            ))
+            if select_pages > 1:
+                container.add_item(discord.ui.TextDisplay(
+                    f'-# Wybór słowników · strona {self.dictionary_select_page + 1} z {select_pages}'
+                ))
+                container.add_item(discord.ui.ActionRow(
+                    PanelButton('dictionary_select_prev', 'Poprzednia',
+                                disabled=self.dictionary_select_page == 0),
+                    PanelButton('dictionary_select_next', 'Następna',
+                                disabled=self.dictionary_select_page == select_pages - 1),
+                ))
             container.add_item(discord.ui.ActionRow(
                 PanelButton('publish', 'Utwórz lobby', discord.ButtonStyle.success),
                 PanelButton('home', 'Wróć'),
             ))
+        elif self.screen in ('dictionary_detail', 'dictionary_delete_confirm'):
+            record = next((item for item in list_dictionaries(self.key[0])
+                           if item['id'] == self.selected_dictionary_id), None)
+            if record is None or record['owner_id'] != self.owner_id:
+                container.add_item(discord.ui.TextDisplay('# 📚 Słownik niedostępny\nNie można go już znaleźć.'))
+                container.add_item(discord.ui.ActionRow(PanelButton('dictionaries', 'Wróć do słowników')))
+            elif self.screen == 'dictionary_detail':
+                name = discord.utils.escape_markdown(record['name'])
+                preview = ', '.join(record['words'][:12])
+                if len(preview) > 500:
+                    preview = preview[:497] + '…'
+                preview = discord.utils.escape_markdown(preview)
+                container.add_item(discord.ui.TextDisplay(
+                    f'# 📚 {name}\n{len(record["words"])} haseł · '
+                    f'bez podpowiedzi: {count_words_without_hints(record["words"])}\n\n{preview}'
+                ))
+                container.add_item(discord.ui.Separator())
+                container.add_item(discord.ui.ActionRow(
+                    PanelButton(f'dictionary_edit:{record["id"]}', 'Edytuj', discord.ButtonStyle.primary),
+                    PanelButton(f'dictionary_delete:{record["id"]}', 'Usuń', discord.ButtonStyle.danger),
+                    PanelButton('dictionaries', 'Wróć'),
+                ))
+            else:
+                name = discord.utils.escape_markdown(record['name'])
+                container.add_item(discord.ui.TextDisplay(
+                    f'# Usuń słownik?\nCzy na pewno usunąć **{name}**? Tej operacji nie można cofnąć.'
+                ))
+                container.add_item(discord.ui.Separator())
+                container.add_item(discord.ui.ActionRow(
+                    PanelButton(f'dictionary_delete_confirm:{record["id"]}', 'Usuń słownik', discord.ButtonStyle.danger),
+                    PanelButton('dictionary_delete_cancel', 'Anuluj'),
+                ))
         elif self.screen == 'dictionaries':
             records = list_dictionaries(self.key[0])
             pages = max(1, (len(records) + 3) // 4)
@@ -375,7 +454,7 @@ class ImpostorPanel(ImpostorView):
                 if record['owner_id'] == self.owner_id:
                     container.add_item(discord.ui.Section(
                         card,
-                        accessory=PanelButton(f'dictionary_edit:{record["id"]}', 'Edytuj'),
+                        accessory=PanelButton(f'dictionary_manage:{record["id"]}', 'Zarządzaj'),
                     ))
                 else:
                     container.add_item(card)
@@ -432,19 +511,32 @@ class ImpostorPanel(ImpostorView):
         return False
 
     async def action(self, interaction, action):
-        if action in ('home', 'create', 'dictionaries', 'dictionary_prev', 'dictionary_next'):
+        if action in ('home', 'create', 'dictionaries', 'dictionary_prev', 'dictionary_next',
+                      'dictionary_select_prev', 'dictionary_select_next'):
             if action == 'dictionary_prev':
                 self.dictionary_page -= 1
             elif action == 'dictionary_next':
                 self.dictionary_page += 1
+            elif action == 'dictionary_select_prev':
+                self.dictionary_select_page -= 1
+            elif action == 'dictionary_select_next':
+                self.dictionary_select_page += 1
             elif action == 'dictionaries':
                 self.dictionary_page = 0
-            if action not in ('dictionary_prev', 'dictionary_next'):
+            elif action == 'create':
+                self.dictionary_select_page = 0
+            if action not in ('dictionary_prev', 'dictionary_next',
+                              'dictionary_select_prev', 'dictionary_select_next'):
                 self.screen = action
             self.render()
             await interaction.response.edit_message(view=self, allowed_mentions=discord.AllowedMentions.none())
         elif action == 'dictionary_create':
             await interaction.response.send_modal(CreateDictionaryModal(self))
+        elif action.startswith('dictionary_manage:'):
+            self.selected_dictionary_id = action.partition(':')[2]
+            self.screen = 'dictionary_detail'
+            self.render()
+            await interaction.response.edit_message(view=self, allowed_mentions=discord.AllowedMentions.none())
         elif action.startswith('dictionary_edit:'):
             dictionary_id = action.partition(':')[2]
             record = next((item for item in list_dictionaries(self.key[0]) if item['id'] == dictionary_id), None)
@@ -452,6 +544,36 @@ class ImpostorPanel(ImpostorView):
                 await reply(interaction, 'Nie znaleziono słownika, który możesz edytować.')
                 return
             await interaction.response.send_modal(CreateDictionaryModal(self, record))
+        elif action.startswith('dictionary_delete:'):
+            self.selected_dictionary_id = action.partition(':')[2]
+            self.screen = 'dictionary_delete_confirm'
+            self.render()
+            await interaction.response.edit_message(view=self, allowed_mentions=discord.AllowedMentions.none())
+        elif action == 'dictionary_delete_cancel':
+            self.screen = 'dictionary_detail'
+            self.render()
+            await interaction.response.edit_message(view=self, allowed_mentions=discord.AllowedMentions.none())
+        elif action.startswith('dictionary_delete_confirm:'):
+            dictionary_id = action.partition(':')[2]
+            try:
+                record = delete_dictionary(self.key[0], self.owner_id, dictionary_id)
+            except ValueError as error:
+                await reply(interaction, str(error))
+                self.screen = 'dictionaries'
+                self.render()
+                await interaction.edit_original_response(view=self, allowed_mentions=discord.AllowedMentions.none())
+                return
+            except OSError:
+                logger.exception('Could not delete impostor dictionary')
+                await reply(interaction, 'Nie udało się usunąć słownika. Spróbuj ponownie.')
+                return
+            self.screen = 'dictionaries'
+            self.render()
+            await interaction.response.edit_message(view=self, allowed_mentions=discord.AllowedMentions.none())
+            await interaction.followup.send(
+                f'Usunięto słownik **{discord.utils.escape_markdown(record["name"])}**.',
+                ephemeral=True, allowed_mentions=discord.AllowedMentions.none(),
+            )
         elif action == 'join':
             lobby = LOBBIES.get(self.key)
             if lobby:
@@ -461,6 +583,9 @@ class ImpostorPanel(ImpostorView):
             else:
                 await reply(interaction, 'Na tym kanale nie ma lobby. Najpierw ktoś musi je stworzyć.')
         elif action == 'publish':
+            if not self.dictionaries:
+                await reply(interaction, 'Wybierz przynajmniej jeden słownik.')
+                return
             await interaction.response.defer(ephemeral=True)
             async with _CREATE_LOCK:
                 if self.key in LOBBIES:

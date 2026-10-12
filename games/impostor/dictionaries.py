@@ -6,6 +6,7 @@ import unicodedata
 import uuid
 
 DICTIONARY_FILE = Path(__file__).resolve().parents[2] / 'data' / 'impostor' / 'dictionaries.json'
+STANDARD_DICTIONARY_FILE = Path(__file__).resolve().with_name('standard_dictionary.json')
 MAX_WORDS = 200
 MAX_DICTIONARIES = 100
 
@@ -50,6 +51,24 @@ def count_words_without_hints(words):
         if not separator or not word.strip() or not hint.strip():
             count += 1
     return count
+
+
+def load_standard_dictionary():
+    """Load the bundled standard dictionary; it is separate from guild libraries."""
+    try:
+        data = json.loads(STANDARD_DICTIONARY_FILE.read_text(encoding='utf-8'))
+        words = data['words']
+        if data.get('version') != 1 or not isinstance(words, list) or not words:
+            raise ValueError
+        for entry in words:
+            if (not isinstance(entry, dict) or not isinstance(entry.get('word'), str)
+                    or not entry['word'].strip() or not isinstance(entry.get('hints'), list)
+                    or len(entry['hints']) != 2
+                    or any(not isinstance(hint, str) or not hint.strip() for hint in entry['hints'])):
+                raise ValueError
+        return words
+    except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError) as error:
+        raise ValueError('Wbudowany słownik Impostora jest nieprawidłowy.') from error
 
 
 def load_store():
@@ -114,6 +133,23 @@ def update_dictionary(guild_id, owner_id, dictionary_id, name, text):
         raise ValueError('Słownik o tej nazwie już istnieje na serwerze. Wybierz inną nazwę.')
     record['name'] = name
     record['words'] = words
+    DICTIONARY_FILE.parent.mkdir(parents=True, exist_ok=True)
+    temporary = DICTIONARY_FILE.with_suffix('.tmp')
+    temporary.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
+    temporary.replace(DICTIONARY_FILE)
+    return record
+
+
+def delete_dictionary(guild_id, owner_id, dictionary_id):
+    data = load_store()
+    guild_key = str(guild_id)
+    records = data['guilds'].get(guild_key, [])
+    index = next((i for i, item in enumerate(records) if item['id'] == dictionary_id), None)
+    if index is None or records[index]['owner_id'] != owner_id:
+        raise ValueError('Nie znaleziono słownika, który możesz usunąć.')
+    record = records.pop(index)
+    if not records:
+        data['guilds'].pop(guild_key, None)
     DICTIONARY_FILE.parent.mkdir(parents=True, exist_ok=True)
     temporary = DICTIONARY_FILE.with_suffix('.tmp')
     temporary.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')

@@ -1,0 +1,2805 @@
+{
+  "version": 1,
+  "words": [
+    {
+      "word": "parasol",
+      "hints": [
+        "pogoda",
+        "ruch"
+      ]
+    },
+    {
+      "word": "telefon",
+      "hints": [
+        "codzienność",
+        "spotkanie"
+      ]
+    },
+    {
+      "word": "klucz",
+      "hints": [
+        "dom",
+        "wyjazd"
+      ]
+    },
+    {
+      "word": "portfel",
+      "hints": [
+        "zakupy",
+        "miasto"
+      ]
+    },
+    {
+      "word": "plecak",
+      "hints": [
+        "szkoła",
+        "wyjazd"
+      ]
+    },
+    {
+      "word": "walizka",
+      "hints": [
+        "podróż",
+        "lato"
+      ]
+    },
+    {
+      "word": "zegarek",
+      "hints": [
+        "codzienność",
+        "poranek"
+      ]
+    },
+    {
+      "word": "aparat",
+      "hints": [
+        "wspomnienia",
+        "rodzina"
+      ]
+    },
+    {
+      "word": "latarka",
+      "hints": [
+        "wieczór",
+        "podróż"
+      ]
+    },
+    {
+      "word": "okulary",
+      "hints": [
+        "szkoła",
+        "praca"
+      ]
+    },
+    {
+      "word": "szczoteczka do zębów",
+      "hints": [
+        "poranek",
+        "dom"
+      ]
+    },
+    {
+      "word": "grzebień",
+      "hints": [
+        "codzienność",
+        "wygląd"
+      ]
+    },
+    {
+      "word": "ręcznik",
+      "hints": [
+        "lato",
+        "woda"
+      ]
+    },
+    {
+      "word": "mydło",
+      "hints": [
+        "woda",
+        "dom"
+      ]
+    },
+    {
+      "word": "gąbka",
+      "hints": [
+        "woda",
+        "porządek"
+      ]
+    },
+    {
+      "word": "suszarka do włosów",
+      "hints": [
+        "poranek",
+        "dom"
+      ]
+    },
+    {
+      "word": "żelazko",
+      "hints": [
+        "miasto",
+        "praca"
+      ]
+    },
+    {
+      "word": "odkurzacz",
+      "hints": [
+        "porządek",
+        "codzienność"
+      ]
+    },
+    {
+      "word": "miotła",
+      "hints": [
+        "ogród",
+        "dom"
+      ]
+    },
+    {
+      "word": "wiadro",
+      "hints": [
+        "porządek",
+        "woda"
+      ]
+    },
+    {
+      "word": "kubek",
+      "hints": [
+        "odpoczynek",
+        "śniadanie"
+      ]
+    },
+    {
+      "word": "talerz",
+      "hints": [
+        "rodzina",
+        "obiad"
+      ]
+    },
+    {
+      "word": "widelec",
+      "hints": [
+        "obiad",
+        "dom"
+      ]
+    },
+    {
+      "word": "łyżka",
+      "hints": [
+        "obiad",
+        "smak"
+      ]
+    },
+    {
+      "word": "garnek",
+      "hints": [
+        "dom",
+        "rodzina"
+      ]
+    },
+    {
+      "word": "patelnia",
+      "hints": [
+        "lato",
+        "kuchnia"
+      ]
+    },
+    {
+      "word": "czajnik",
+      "hints": [
+        "poranek",
+        "dom"
+      ]
+    },
+    {
+      "word": "butelka",
+      "hints": [
+        "podróż",
+        "lato"
+      ]
+    },
+    {
+      "word": "słoik",
+      "hints": [
+        "dom",
+        "obiad"
+      ]
+    },
+    {
+      "word": "termos",
+      "hints": [
+        "wyjazd",
+        "podróż"
+      ]
+    },
+    {
+      "word": "kanapka",
+      "hints": [
+        "szkoła",
+        "obiad"
+      ]
+    },
+    {
+      "word": "pizza",
+      "hints": [
+        "spotkanie",
+        "rodzina"
+      ]
+    },
+    {
+      "word": "naleśnik",
+      "hints": [
+        "odpoczynek",
+        "smak"
+      ]
+    },
+    {
+      "word": "gofr",
+      "hints": [
+        "lato",
+        "wyjazd"
+      ]
+    },
+    {
+      "word": "lody",
+      "hints": [
+        "lato",
+        "smak"
+      ]
+    },
+    {
+      "word": "hamburger",
+      "hints": [
+        "miasto",
+        "spotkanie"
+      ]
+    },
+    {
+      "word": "frytki",
+      "hints": [
+        "miasto",
+        "wieczór"
+      ]
+    },
+    {
+      "word": "popcorn",
+      "hints": [
+        "wieczór",
+        "zabawa"
+      ]
+    },
+    {
+      "word": "arbuz",
+      "hints": [
+        "lato",
+        "rodzina"
+      ]
+    },
+    {
+      "word": "pączek",
+      "hints": [
+        "święto",
+        "poranek"
+      ]
+    },
+    {
+      "word": "banan",
+      "hints": [
+        "obiad",
+        "lato"
+      ]
+    },
+    {
+      "word": "cytryna",
+      "hints": [
+        "obiad",
+        "napój"
+      ]
+    },
+    {
+      "word": "ogórek",
+      "hints": [
+        "woda",
+        "ogród"
+      ]
+    },
+    {
+      "word": "marchewka",
+      "hints": [
+        "ogród",
+        "obiad"
+      ]
+    },
+    {
+      "word": "pomidor",
+      "hints": [
+        "lato",
+        "kanapka"
+      ]
+    },
+    {
+      "word": "cebula",
+      "hints": [
+        "zapach",
+        "dom"
+      ]
+    },
+    {
+      "word": "jajko",
+      "hints": [
+        "poranek",
+        "śniadanie"
+      ]
+    },
+    {
+      "word": "ser",
+      "hints": [
+        "rodzina",
+        "lato"
+      ]
+    },
+    {
+      "word": "chleb",
+      "hints": [
+        "dom",
+        "śniadanie"
+      ]
+    },
+    {
+      "word": "lizak",
+      "hints": [
+        "zabawa",
+        "dzieciństwo"
+      ]
+    },
+    {
+      "word": "buty",
+      "hints": [
+        "codzienność",
+        "wyjazd"
+      ]
+    },
+    {
+      "word": "kapcie",
+      "hints": [
+        "dom",
+        "odpoczynek"
+      ]
+    },
+    {
+      "word": "czapka",
+      "hints": [
+        "zima",
+        "pogoda"
+      ]
+    },
+    {
+      "word": "kask",
+      "hints": [
+        "ruch",
+        "zima"
+      ]
+    },
+    {
+      "word": "rękawiczki",
+      "hints": [
+        "zima",
+        "pogoda"
+      ]
+    },
+    {
+      "word": "szalik",
+      "hints": [
+        "zima",
+        "wyjście"
+      ]
+    },
+    {
+      "word": "krawat",
+      "hints": [
+        "praca",
+        "spotkanie"
+      ]
+    },
+    {
+      "word": "pasek",
+      "hints": [
+        "codzienność",
+        "ubranie"
+      ]
+    },
+    {
+      "word": "skarpetka",
+      "hints": [
+        "porządek",
+        "codzienność"
+      ]
+    },
+    {
+      "word": "piżama",
+      "hints": [
+        "wieczór",
+        "dom"
+      ]
+    },
+    {
+      "word": "piłka",
+      "hints": [
+        "zabawa",
+        "ruch"
+      ]
+    },
+    {
+      "word": "rakieta tenisowa",
+      "hints": [
+        "lato",
+        "muzyka"
+      ]
+    },
+    {
+      "word": "gitara",
+      "hints": [
+        "muzyka",
+        "zabawa"
+      ]
+    },
+    {
+      "word": "mikrofon",
+      "hints": [
+        "spotkanie",
+        "muzyka"
+      ]
+    },
+    {
+      "word": "słuchawki",
+      "hints": [
+        "muzyka",
+        "podróż"
+      ]
+    },
+    {
+      "word": "pad",
+      "hints": [
+        "wieczór",
+        "zabawa"
+      ]
+    },
+    {
+      "word": "klawiatura",
+      "hints": [
+        "praca",
+        "muzyka"
+      ]
+    },
+    {
+      "word": "myszka",
+      "hints": [
+        "codzienność",
+        "praca"
+      ]
+    },
+    {
+      "word": "pilot",
+      "hints": [
+        "wieczór",
+        "dom"
+      ]
+    },
+    {
+      "word": "ładowarka",
+      "hints": [
+        "wyjazd",
+        "energia"
+      ]
+    },
+    {
+      "word": "rower",
+      "hints": [
+        "ruch",
+        "lato"
+      ]
+    },
+    {
+      "word": "hulajnoga",
+      "hints": [
+        "miasto",
+        "ruch"
+      ]
+    },
+    {
+      "word": "rolki",
+      "hints": [
+        "ruch",
+        "pogoda"
+      ]
+    },
+    {
+      "word": "deskorolka",
+      "hints": [
+        "miasto",
+        "ruch"
+      ]
+    },
+    {
+      "word": "sanki",
+      "hints": [
+        "zima",
+        "zabawa"
+      ]
+    },
+    {
+      "word": "kajak",
+      "hints": [
+        "woda",
+        "wyjazd"
+      ]
+    },
+    {
+      "word": "wózek",
+      "hints": [
+        "zakupy",
+        "rodzina"
+      ]
+    },
+    {
+      "word": "taczka",
+      "hints": [
+        "ogród",
+        "praca"
+      ]
+    },
+    {
+      "word": "drabina",
+      "hints": [
+        "praca",
+        "dom"
+      ]
+    },
+    {
+      "word": "namiot",
+      "hints": [
+        "wyjazd",
+        "ogród"
+      ]
+    },
+    {
+      "word": "balon",
+      "hints": [
+        "zabawa",
+        "sport"
+      ]
+    },
+    {
+      "word": "latawiec",
+      "hints": [
+        "pogoda",
+        "lato"
+      ]
+    },
+    {
+      "word": "bańki mydlane",
+      "hints": [
+        "lato",
+        "ogród"
+      ]
+    },
+    {
+      "word": "bałwan",
+      "hints": [
+        "zima",
+        "ferie"
+      ]
+    },
+    {
+      "word": "prezent",
+      "hints": [
+        "święto",
+        "rodzina"
+      ]
+    },
+    {
+      "word": "tort",
+      "hints": [
+        "rodzina",
+        "święto"
+      ]
+    },
+    {
+      "word": "korona",
+      "hints": [
+        "święto",
+        "bajka"
+      ]
+    },
+    {
+      "word": "maska",
+      "hints": [
+        "zabawa",
+        "spotkanie"
+      ]
+    },
+    {
+      "word": "medal",
+      "hints": [
+        "ruch",
+        "sukces"
+      ]
+    },
+    {
+      "word": "świeczki",
+      "hints": [
+        "święto",
+        "wieczór"
+      ]
+    },
+    {
+      "word": "mycie zębów",
+      "hints": [
+        "poranek",
+        "codzienność"
+      ]
+    },
+    {
+      "word": "czesanie włosów",
+      "hints": [
+        "codzienność",
+        "wygląd"
+      ]
+    },
+    {
+      "word": "prasowanie koszuli",
+      "hints": [
+        "praca",
+        "ubranie"
+      ]
+    },
+    {
+      "word": "odkurzanie pokoju",
+      "hints": [
+        "porządek",
+        "weekend"
+      ]
+    },
+    {
+      "word": "podlewanie kwiatów",
+      "hints": [
+        "ogród",
+        "lato"
+      ]
+    },
+    {
+      "word": "zamiatanie podłogi",
+      "hints": [
+        "porządek",
+        "dom"
+      ]
+    },
+    {
+      "word": "pakowanie walizki",
+      "hints": [
+        "podróż",
+        "wyjazd"
+      ]
+    },
+    {
+      "word": "krojenie chleba",
+      "hints": [
+        "obiad",
+        "śniadanie"
+      ]
+    },
+    {
+      "word": "mieszanie zupy",
+      "hints": [
+        "rodzina",
+        "kuchnia"
+      ]
+    },
+    {
+      "word": "dmuchanie balonu",
+      "hints": [
+        "święto",
+        "zabawa"
+      ]
+    },
+    {
+      "word": "jazda na rowerze",
+      "hints": [
+        "ruch",
+        "lato"
+      ]
+    },
+    {
+      "word": "skakanie na skakance",
+      "hints": [
+        "zabawa",
+        "ruch"
+      ]
+    },
+    {
+      "word": "pływanie w basenie",
+      "hints": [
+        "lato",
+        "woda"
+      ]
+    },
+    {
+      "word": "gra na gitarze",
+      "hints": [
+        "muzyka",
+        "ognisko"
+      ]
+    },
+    {
+      "word": "robienie zdjęcia",
+      "hints": [
+        "wspomnienia",
+        "wakacje"
+      ]
+    },
+    {
+      "word": "łowienie ryb",
+      "hints": [
+        "odpoczynek",
+        "woda"
+      ]
+    },
+    {
+      "word": "jazda na nartach",
+      "hints": [
+        "zima",
+        "wyjazd"
+      ]
+    },
+    {
+      "word": "gra w koszykówkę",
+      "hints": [
+        "zabawa",
+        "sport"
+      ]
+    },
+    {
+      "word": "gra w kręgle",
+      "hints": [
+        "spotkanie",
+        "rodzina"
+      ]
+    },
+    {
+      "word": "jazda konna",
+      "hints": [
+        "wyjazd",
+        "podróż"
+      ]
+    },
+    {
+      "word": "mycie okien",
+      "hints": [
+        "porządek",
+        "pogoda"
+      ]
+    },
+    {
+      "word": "wieszanie prania",
+      "hints": [
+        "dom",
+        "pogoda"
+      ]
+    },
+    {
+      "word": "robienie kanapki",
+      "hints": [
+        "poranek",
+        "obiad"
+      ]
+    },
+    {
+      "word": "pieczenie ciasta",
+      "hints": [
+        "zapach",
+        "rodzina"
+      ]
+    },
+    {
+      "word": "jedzenie spaghetti",
+      "hints": [
+        "obiad",
+        "kuchnia"
+      ]
+    },
+    {
+      "word": "picie przez słomkę",
+      "hints": [
+        "lato",
+        "woda"
+      ]
+    },
+    {
+      "word": "otwieranie słoika",
+      "hints": [
+        "dom",
+        "praca"
+      ]
+    },
+    {
+      "word": "wiązanie butów",
+      "hints": [
+        "codzienność",
+        "dom"
+      ]
+    },
+    {
+      "word": "szukanie kluczy",
+      "hints": [
+        "podróż",
+        "poranek"
+      ]
+    },
+    {
+      "word": "odbieranie telefonu",
+      "hints": [
+        "codzienność",
+        "rodzina"
+      ]
+    },
+    {
+      "word": "kino",
+      "hints": [
+        "miasto",
+        "wieczór"
+      ]
+    },
+    {
+      "word": "plaża",
+      "hints": [
+        "lato",
+        "woda"
+      ]
+    },
+    {
+      "word": "basen",
+      "hints": [
+        "ruch",
+        "lato"
+      ]
+    },
+    {
+      "word": "szkoła",
+      "hints": [
+        "szkoła",
+        "rodzina"
+      ]
+    },
+    {
+      "word": "sklep",
+      "hints": [
+        "zakupy",
+        "miasto"
+      ]
+    },
+    {
+      "word": "garaż",
+      "hints": [
+        "dom",
+        "praca"
+      ]
+    },
+    {
+      "word": "kuchnia",
+      "hints": [
+        "dom",
+        "obiad"
+      ]
+    },
+    {
+      "word": "łazienka",
+      "hints": [
+        "poranek",
+        "dom"
+      ]
+    },
+    {
+      "word": "plac zabaw",
+      "hints": [
+        "zabawa",
+        "dzieciństwo"
+      ]
+    },
+    {
+      "word": "park",
+      "hints": [
+        "miasto",
+        "droga"
+      ]
+    },
+    {
+      "word": "huśtawka",
+      "hints": [
+        "zabawa",
+        "ruch"
+      ]
+    },
+    {
+      "word": "zjeżdżalnia",
+      "hints": [
+        "ruch",
+        "zabawa"
+      ]
+    },
+    {
+      "word": "piaskownica",
+      "hints": [
+        "zabawa",
+        "dzieci"
+      ]
+    },
+    {
+      "word": "trampolina",
+      "hints": [
+        "ruch",
+        "zabawa"
+      ]
+    },
+    {
+      "word": "hamak",
+      "hints": [
+        "odpoczynek",
+        "lato"
+      ]
+    },
+    {
+      "word": "fontanna",
+      "hints": [
+        "miasto",
+        "woda"
+      ]
+    },
+    {
+      "word": "ławka",
+      "hints": [
+        "odpoczynek",
+        "dom"
+      ]
+    },
+    {
+      "word": "scena",
+      "hints": [
+        "muzyka",
+        "światło"
+      ]
+    },
+    {
+      "word": "przystanek",
+      "hints": [
+        "podróż",
+        "miasto"
+      ]
+    },
+    {
+      "word": "dworzec",
+      "hints": [
+        "podróż",
+        "miasto"
+      ]
+    },
+    {
+      "word": "dentysta",
+      "hints": [
+        "codzienność",
+        "praca"
+      ]
+    },
+    {
+      "word": "kucharz",
+      "hints": [
+        "praca",
+        "kuchnia"
+      ]
+    },
+    {
+      "word": "fryzjer",
+      "hints": [
+        "codzienność",
+        "wygląd"
+      ]
+    },
+    {
+      "word": "policjant",
+      "hints": [
+        "miasto",
+        "pomoc"
+      ]
+    },
+    {
+      "word": "strażak",
+      "hints": [
+        "pogoda",
+        "pomoc"
+      ]
+    },
+    {
+      "word": "fotograf",
+      "hints": [
+        "wspomnienia",
+        "rodzina"
+      ]
+    },
+    {
+      "word": "kelner",
+      "hints": [
+        "spotkanie",
+        "obiad"
+      ]
+    },
+    {
+      "word": "listonosz",
+      "hints": [
+        "codzienność",
+        "miasto"
+      ]
+    },
+    {
+      "word": "ogrodnik",
+      "hints": [
+        "ogród",
+        "wiosna"
+      ]
+    },
+    {
+      "word": "klaun",
+      "hints": [
+        "zabawa",
+        "impreza"
+      ]
+    },
+    {
+      "word": "jazda autobusem",
+      "hints": [
+        "podróż",
+        "miasto"
+      ]
+    },
+    {
+      "word": "jazda tramwajem",
+      "hints": [
+        "miasto",
+        "wyjazd"
+      ]
+    },
+    {
+      "word": "lot samolotem",
+      "hints": [
+        "podróż",
+        "droga"
+      ]
+    },
+    {
+      "word": "podróż pociągiem",
+      "hints": [
+        "droga",
+        "podróż"
+      ]
+    },
+    {
+      "word": "wiosłowanie kajakiem",
+      "hints": [
+        "woda",
+        "wyjazd"
+      ]
+    },
+    {
+      "word": "prowadzenie samochodu",
+      "hints": [
+        "droga",
+        "podróż"
+      ]
+    },
+    {
+      "word": "tankowanie auta",
+      "hints": [
+        "podróż",
+        "miasto"
+      ]
+    },
+    {
+      "word": "przechodzenie przez ulicę",
+      "hints": [
+        "miasto",
+        "codzienność"
+      ]
+    },
+    {
+      "word": "czekanie na autobus",
+      "hints": [
+        "zima",
+        "miasto"
+      ]
+    },
+    {
+      "word": "szukanie drogi",
+      "hints": [
+        "droga",
+        "podróż"
+      ]
+    },
+    {
+      "word": "gra w tenisa",
+      "hints": [
+        "zabawa",
+        "sport"
+      ]
+    },
+    {
+      "word": "gra w piłkę nożną",
+      "hints": [
+        "ruch",
+        "sport"
+      ]
+    },
+    {
+      "word": "rzucanie frisbee",
+      "hints": [
+        "lato",
+        "zabawa"
+      ]
+    },
+    {
+      "word": "podnoszenie ciężarów",
+      "hints": [
+        "ruch",
+        "praca"
+      ]
+    },
+    {
+      "word": "jazda na łyżwach",
+      "hints": [
+        "zima",
+        "ruch"
+      ]
+    },
+    {
+      "word": "gra w ping-ponga",
+      "hints": [
+        "zabawa",
+        "sport"
+      ]
+    },
+    {
+      "word": "wspinaczka po drabinie",
+      "hints": [
+        "praca",
+        "ruch"
+      ]
+    },
+    {
+      "word": "skok przez kałużę",
+      "hints": [
+        "zabawa",
+        "pogoda"
+      ]
+    },
+    {
+      "word": "budowanie bałwana",
+      "hints": [
+        "pogoda",
+        "zima"
+      ]
+    },
+    {
+      "word": "puszczanie latawca",
+      "hints": [
+        "zima",
+        "rodzina"
+      ]
+    },
+    {
+      "word": "ognisko",
+      "hints": [
+        "spotkanie",
+        "rodzina"
+      ]
+    },
+    {
+      "word": "piknik",
+      "hints": [
+        "odpoczynek",
+        "rodzina"
+      ]
+    },
+    {
+      "word": "urodziny",
+      "hints": [
+        "rodzina",
+        "święto"
+      ]
+    },
+    {
+      "word": "wesele",
+      "hints": [
+        "święto",
+        "zabawa"
+      ]
+    },
+    {
+      "word": "koncert",
+      "hints": [
+        "muzyka",
+        "wieczór"
+      ]
+    },
+    {
+      "word": "zakupy",
+      "hints": [
+        "miasto",
+        "zakupy"
+      ]
+    },
+    {
+      "word": "wakacje",
+      "hints": [
+        "lato",
+        "wyjazd"
+      ]
+    },
+    {
+      "word": "przeprowadzka",
+      "hints": [
+        "dom",
+        "podróż"
+      ]
+    },
+    {
+      "word": "randka",
+      "hints": [
+        "spotkanie",
+        "wieczór"
+      ]
+    },
+    {
+      "word": "wycieczka",
+      "hints": [
+        "podróż",
+        "rodzina"
+      ]
+    },
+    {
+      "word": "pralka",
+      "hints": [
+        "dom",
+        "porządek"
+      ]
+    },
+    {
+      "word": "lodówka",
+      "hints": [
+        "porządek",
+        "jedzenie"
+      ]
+    },
+    {
+      "word": "mikrofalówka",
+      "hints": [
+        "poranek",
+        "obiad"
+      ]
+    },
+    {
+      "word": "toster",
+      "hints": [
+        "poranek",
+        "śniadanie"
+      ]
+    },
+    {
+      "word": "blender",
+      "hints": [
+        "dom",
+        "kuchnia"
+      ]
+    },
+    {
+      "word": "budzik",
+      "hints": [
+        "poranek",
+        "czas"
+      ]
+    },
+    {
+      "word": "wentylator",
+      "hints": [
+        "lato",
+        "ciepło"
+      ]
+    },
+    {
+      "word": "maszyna do szycia",
+      "hints": [
+        "praca",
+        "ubranie"
+      ]
+    },
+    {
+      "word": "ekspres do kawy",
+      "hints": [
+        "zapach",
+        "smak"
+      ]
+    },
+    {
+      "word": "zmywarka",
+      "hints": [
+        "dom",
+        "codzienność"
+      ]
+    },
+    {
+      "word": "zgubiony telefon",
+      "hints": [
+        "codzienność",
+        "dom"
+      ]
+    },
+    {
+      "word": "spóźniony pociąg",
+      "hints": [
+        "podróż",
+        "droga"
+      ]
+    },
+    {
+      "word": "mokre skarpetki",
+      "hints": [
+        "pogoda",
+        "woda"
+      ]
+    },
+    {
+      "word": "przypalony obiad",
+      "hints": [
+        "obiad",
+        "rodzina"
+      ]
+    },
+    {
+      "word": "pęknięty balon",
+      "hints": [
+        "zabawa",
+        "impreza"
+      ]
+    },
+    {
+      "word": "ciężka walizka",
+      "hints": [
+        "wyjazd",
+        "schody"
+      ]
+    },
+    {
+      "word": "zimna pizza",
+      "hints": [
+        "poranek",
+        "codzienność"
+      ]
+    },
+    {
+      "word": "rozładowana bateria",
+      "hints": [
+        "codzienność",
+        "energia"
+      ]
+    },
+    {
+      "word": "niespodziewany gość",
+      "hints": [
+        "spotkanie",
+        "rodzina"
+      ]
+    },
+    {
+      "word": "ostatni kawałek ciasta",
+      "hints": [
+        "rodzina",
+        "święto"
+      ]
+    },
+    {
+      "word": "nostalgia",
+      "hints": [
+        "stare zdjęcia",
+        "powrót"
+      ]
+    },
+    {
+      "word": "déjà vu",
+      "hints": [
+        "powtórka",
+        "dziwne uczucie"
+      ]
+    },
+    {
+      "word": "cisza",
+      "hints": [
+        "noc",
+        "rozmowa"
+      ]
+    },
+    {
+      "word": "szczęście",
+      "hints": [
+        "loteria",
+        "prezent"
+      ]
+    },
+    {
+      "word": "zazdrość",
+      "hints": [
+        "porównanie",
+        "plotka"
+      ]
+    },
+    {
+      "word": "wolność",
+      "hints": [
+        "otwarta droga",
+        "weekend"
+      ]
+    },
+    {
+      "word": "deadline",
+      "hints": [
+        "kalendarz",
+        "stres"
+      ]
+    },
+    {
+      "word": "sekret",
+      "hints": [
+        "szept",
+        "zamknięte drzwi"
+      ]
+    },
+    {
+      "word": "przyzwyczajenie",
+      "hints": [
+        "poranek",
+        "kawa"
+      ]
+    },
+    {
+      "word": "wstyd",
+      "hints": [
+        "pomyłka",
+        "rumieniec"
+      ]
+    },
+    {
+      "word": "niezręczna cisza",
+      "hints": [
+        "winda",
+        "kolacja"
+      ]
+    },
+    {
+      "word": "pierwsze wrażenie",
+      "hints": [
+        "uścisk dłoni",
+        "ubranie"
+      ]
+    },
+    {
+      "word": "białe kłamstwo",
+      "hints": [
+        "wymówka",
+        "niespodzianka"
+      ]
+    },
+    {
+      "word": "żart sytuacyjny",
+      "hints": [
+        "grupa znajomych",
+        "wspomnienie"
+      ]
+    },
+    {
+      "word": "small talk",
+      "hints": [
+        "pogoda",
+        "kolejka"
+      ]
+    },
+    {
+      "word": "ślepa randka",
+      "hints": [
+        "restauracja",
+        "kwiaty"
+      ]
+    },
+    {
+      "word": "plotka",
+      "hints": [
+        "szept",
+        "szkoła"
+      ]
+    },
+    {
+      "word": "przeprosiny",
+      "hints": [
+        "wiadomość",
+        "kwiaty"
+      ]
+    },
+    {
+      "word": "powitanie",
+      "hints": [
+        "nowa osoba",
+        "spotkanie"
+      ]
+    },
+    {
+      "word": "ciche dni",
+      "hints": [
+        "cisza",
+        "obrażenie"
+      ]
+    },
+    {
+      "word": "zorza polarna",
+      "hints": [
+        "nocne niebo",
+        "kolory"
+      ]
+    },
+    {
+      "word": "zaćmienie",
+      "hints": [
+        "cień",
+        "południe"
+      ]
+    },
+    {
+      "word": "tornado",
+      "hints": [
+        "wiatr",
+        "spustoszenie"
+      ]
+    },
+    {
+      "word": "susza",
+      "hints": [
+        "upał",
+        "puste pola"
+      ]
+    },
+    {
+      "word": "osuwisko",
+      "hints": [
+        "deszcz",
+        "góry"
+      ]
+    },
+    {
+      "word": "burza z piorunami",
+      "hints": [
+        "błysk",
+        "grzmot"
+      ]
+    },
+    {
+      "word": "fala upałów",
+      "hints": [
+        "wentylator",
+        "wakacje"
+      ]
+    },
+    {
+      "word": "śnieżyca",
+      "hints": [
+        "droga",
+        "widoczność"
+      ]
+    },
+    {
+      "word": "przypływ",
+      "hints": [
+        "księżyc",
+        "plaża"
+      ]
+    },
+    {
+      "word": "miraż",
+      "hints": [
+        "pustynia",
+        "złudzenie"
+      ]
+    },
+    {
+      "word": "kontrola paszportowa",
+      "hints": [
+        "kolejka",
+        "granica"
+      ]
+    },
+    {
+      "word": "zgubiony bagaż",
+      "hints": [
+        "lotnisko",
+        "urlop"
+      ]
+    },
+    {
+      "word": "podróż samochodem",
+      "hints": [
+        "playlisty",
+        "wakacje"
+      ]
+    },
+    {
+      "word": "nocny pociąg",
+      "hints": [
+        "kuszetka",
+        "ciemność"
+      ]
+    },
+    {
+      "word": "przesiadka",
+      "hints": [
+        "peron",
+        "opóźnienie"
+      ]
+    },
+    {
+      "word": "bramka na autostradzie",
+      "hints": [
+        "bilet",
+        "podróż"
+      ]
+    },
+    {
+      "word": "autostop",
+      "hints": [
+        "pobocze",
+        "kciuk"
+      ]
+    },
+    {
+      "word": "przekraczanie granicy",
+      "hints": [
+        "dokumenty",
+        "podróż"
+      ]
+    },
+    {
+      "word": "plan podróży",
+      "hints": [
+        "mapa",
+        "wakacje"
+      ]
+    },
+    {
+      "word": "pułapka turystyczna",
+      "hints": [
+        "pamiątki",
+        "centrum"
+      ]
+    },
+    {
+      "word": "nocna przekąska",
+      "hints": [
+        "lodówka",
+        "sen"
+      ]
+    },
+    {
+      "word": "tajny składnik",
+      "hints": [
+        "przepis",
+        "smak"
+      ]
+    },
+    {
+      "word": "zakwas",
+      "hints": [
+        "piekarnia",
+        "cierpliwość"
+      ]
+    },
+    {
+      "word": "food truck",
+      "hints": [
+        "festiwal",
+        "kolejka"
+      ]
+    },
+    {
+      "word": "menu degustacyjne",
+      "hints": [
+        "restauracja",
+        "niespodzianka"
+      ]
+    },
+    {
+      "word": "przypalony tost",
+      "hints": [
+        "dym",
+        "śniadanie"
+      ]
+    },
+    {
+      "word": "ślepy test smaku",
+      "hints": [
+        "opaska",
+        "zgadywanie"
+      ]
+    },
+    {
+      "word": "szwedzki stół",
+      "hints": [
+        "goście",
+        "wybór"
+      ]
+    },
+    {
+      "word": "wymiana przepisów",
+      "hints": [
+        "rodzina",
+        "zeszyt"
+      ]
+    },
+    {
+      "word": "krytyk kulinarny",
+      "hints": [
+        "restauracja",
+        "ocena"
+      ]
+    },
+    {
+      "word": "tryb samolotowy",
+      "hints": [
+        "podróż",
+        "cisza"
+      ]
+    },
+    {
+      "word": "autokorekta",
+      "hints": [
+        "wiadomość",
+        "pomyłka"
+      ]
+    },
+    {
+      "word": "wiadomość głosowa",
+      "hints": [
+        "telefon",
+        "głos"
+      ]
+    },
+    {
+      "word": "nieprzeczytana wiadomość",
+      "hints": [
+        "powiadomienie",
+        "oczekiwanie"
+      ]
+    },
+    {
+      "word": "buforowanie",
+      "hints": [
+        "film",
+        "kręcące kółko"
+      ]
+    },
+    {
+      "word": "reset hasła",
+      "hints": [
+        "logowanie",
+        "zapomnienie"
+      ]
+    },
+    {
+      "word": "zrzut ekranu",
+      "hints": [
+        "dowód",
+        "telefon"
+      ]
+    },
+    {
+      "word": "martwa strefa Wi-Fi",
+      "hints": [
+        "sygnał",
+        "piwnica"
+      ]
+    },
+    {
+      "word": "folder spam",
+      "hints": [
+        "reklamy",
+        "skrzynka"
+      ]
+    },
+    {
+      "word": "tryb incognito",
+      "hints": [
+        "przeglądarka",
+        "tajemnica"
+      ]
+    },
+    {
+      "word": "urwany wątek",
+      "hints": [
+        "serial",
+        "zakończenie"
+      ]
+    },
+    {
+      "word": "zdradzony finał",
+      "hints": [
+        "film",
+        "nie czytaj"
+      ]
+    },
+    {
+      "word": "próba kostiumowa",
+      "hints": [
+        "teatr",
+        "przebranie"
+      ]
+    },
+    {
+      "word": "audycja",
+      "hints": [
+        "scena",
+        "trema"
+      ]
+    },
+    {
+      "word": "owacje",
+      "hints": [
+        "publiczność",
+        "brawa"
+      ]
+    },
+    {
+      "word": "bis",
+      "hints": [
+        "koncert",
+        "publiczność"
+      ]
+    },
+    {
+      "word": "za kulisami",
+      "hints": [
+        "teatr",
+        "sekret"
+      ]
+    },
+    {
+      "word": "pokój zagadek",
+      "hints": [
+        "kłódka",
+        "zespół"
+      ]
+    },
+    {
+      "word": "otwarta scena",
+      "hints": [
+        "mikrofon",
+        "odwaga"
+      ]
+    },
+    {
+      "word": "próba generalna",
+      "hints": [
+        "premiera",
+        "nerwy"
+      ]
+    },
+    {
+      "word": "spóźnione wejście",
+      "hints": [
+        "scena",
+        "uwaga"
+      ]
+    },
+    {
+      "word": "rzuty karne",
+      "hints": [
+        "bramkarz",
+        "dogrywka"
+      ]
+    },
+    {
+      "word": "fotofinisz",
+      "hints": [
+        "meta",
+        "sekunda"
+      ]
+    },
+    {
+      "word": "falstart",
+      "hints": [
+        "gwizdek",
+        "start"
+      ]
+    },
+    {
+      "word": "przewaga własnego boiska",
+      "hints": [
+        "kibice",
+        "mecz"
+      ]
+    },
+    {
+      "word": "tie-break",
+      "hints": [
+        "remis",
+        "ostatni punkt"
+      ]
+    },
+    {
+      "word": "plotka transferowa",
+      "hints": [
+        "klub",
+        "sezon"
+      ]
+    },
+    {
+      "word": "czarny koń",
+      "hints": [
+        "niespodzianka",
+        "finał"
+      ]
+    },
+    {
+      "word": "granie do końca",
+      "hints": [
+        "ostatnia szansa",
+        "powrót"
+      ]
+    },
+    {
+      "word": "dzika karta",
+      "hints": [
+        "turniej",
+        "niespodzianka"
+      ]
+    },
+    {
+      "word": "próba pobicia rekordu",
+      "hints": [
+        "stoper",
+        "publiczność"
+      ]
+    },
+    {
+      "word": "niezapowiedziana kartkówka",
+      "hints": [
+        "szkoła",
+        "stres"
+      ]
+    },
+    {
+      "word": "projekt grupowy",
+      "hints": [
+        "podział zadań",
+        "termin"
+      ]
+    },
+    {
+      "word": "przerwa na kawę",
+      "hints": [
+        "biuro",
+        "rozmowa"
+      ]
+    },
+    {
+      "word": "nadgodziny",
+      "hints": [
+        "późny wieczór",
+        "biuro"
+      ]
+    },
+    {
+      "word": "rozmowa o pracę",
+      "hints": [
+        "strój",
+        "pytania"
+      ]
+    },
+    {
+      "word": "list rezygnacyjny",
+      "hints": [
+        "decyzja",
+        "ostatni dzień"
+      ]
+    },
+    {
+      "word": "wystąpienie publiczne",
+      "hints": [
+        "mikrofon",
+        "trema"
+      ]
+    },
+    {
+      "word": "stres przed testem",
+      "hints": [
+        "kartka",
+        "cisza"
+      ]
+    },
+    {
+      "word": "zjazd absolwentów",
+      "hints": [
+        "szkoła",
+        "wspomnienia"
+      ]
+    },
+    {
+      "word": "pierwszy dzień w pracy",
+      "hints": [
+        "nowe biurko",
+        "nerwy"
+      ]
+    },
+    {
+      "word": "zakup pod wpływem chwili",
+      "hints": [
+        "witryna",
+        "reklama"
+      ]
+    },
+    {
+      "word": "ukryta opłata",
+      "hints": [
+        "rachunek",
+        "drobny druk"
+      ]
+    },
+    {
+      "word": "zwrot gotówki",
+      "hints": [
+        "karta",
+        "zakupy"
+      ]
+    },
+    {
+      "word": "wyprzedaż garażowa",
+      "hints": [
+        "stare rzeczy",
+        "sąsiedzi"
+      ]
+    },
+    {
+      "word": "licytacja",
+      "hints": [
+        "aukcja",
+        "ostatnia oferta"
+      ]
+    },
+    {
+      "word": "skarbonka",
+      "hints": [
+        "drobne",
+        "marzenie"
+      ]
+    },
+    {
+      "word": "los na loterii",
+      "hints": [
+        "szczęśliwy numer",
+        "nadzieja"
+      ]
+    },
+    {
+      "word": "giełda",
+      "hints": [
+        "wykres",
+        "ryzyko"
+      ]
+    },
+    {
+      "word": "okazja cenowa",
+      "hints": [
+        "promocja",
+        "pośpiech"
+      ]
+    },
+    {
+      "word": "płatność bezgotówkowa",
+      "hints": [
+        "terminal",
+        "karta"
+      ]
+    },
+    {
+      "word": "sylwester",
+      "hints": [
+        "odliczanie",
+        "północ"
+      ]
+    },
+    {
+      "word": "toast weselny",
+      "hints": [
+        "rodzina",
+        "mikrofon"
+      ]
+    },
+    {
+      "word": "zjazd rodzinny",
+      "hints": [
+        "stół",
+        "stare historie"
+      ]
+    },
+    {
+      "word": "zakończenie szkoły",
+      "hints": [
+        "biret",
+        "wakacje"
+      ]
+    },
+    {
+      "word": "przyjęcie niespodzianka",
+      "hints": [
+        "balony",
+        "sekret"
+      ]
+    },
+    {
+      "word": "parapetówka",
+      "hints": [
+        "kartony",
+        "nowy adres"
+      ]
+    },
+    {
+      "word": "pożegnalne przyjęcie",
+      "hints": [
+        "ostatni dzień",
+        "wspomnienia"
+      ]
+    },
+    {
+      "word": "rocznica",
+      "hints": [
+        "zdjęcie",
+        "kalendarz"
+      ]
+    },
+    {
+      "word": "baby shower",
+      "hints": [
+        "prezent",
+        "oczekiwanie"
+      ]
+    },
+    {
+      "word": "wigilia",
+      "hints": [
+        "stół",
+        "zapach"
+      ]
+    },
+    {
+      "word": "czkawka",
+      "hints": [
+        "woda",
+        "śmiech"
+      ]
+    },
+    {
+      "word": "jet lag",
+      "hints": [
+        "podróż",
+        "poranek"
+      ]
+    },
+    {
+      "word": "bezsenność",
+      "hints": [
+        "zegarek",
+        "ciemność"
+      ]
+    },
+    {
+      "word": "strach przed sceną",
+      "hints": [
+        "publiczność",
+        "drżenie"
+      ]
+    },
+    {
+      "word": "choroba lokomocyjna",
+      "hints": [
+        "zakręt",
+        "podróż"
+      ]
+    },
+    {
+      "word": "efekt placebo",
+      "hints": [
+        "tabletka",
+        "wyobraźnia"
+      ]
+    },
+    {
+      "word": "zachcianka",
+      "hints": [
+        "noc",
+        "lodówka"
+      ]
+    },
+    {
+      "word": "atak paniki",
+      "hints": [
+        "oddech",
+        "tłum"
+      ]
+    },
+    {
+      "word": "motyle w brzuchu",
+      "hints": [
+        "wiadomość",
+        "randka"
+      ]
+    },
+    {
+      "word": "kac",
+      "hints": [
+        "woda",
+        "poranek"
+      ]
+    },
+    {
+      "word": "wróżbita",
+      "hints": [
+        "karty",
+        "przyszłość"
+      ]
+    },
+    {
+      "word": "nocny stróż",
+      "hints": [
+        "obchód",
+        "cisza"
+      ]
+    },
+    {
+      "word": "artysta uliczny",
+      "hints": [
+        "chodnik",
+        "kapelusz"
+      ]
+    },
+    {
+      "word": "tajemniczy klient",
+      "hints": [
+        "sklep",
+        "ocena"
+      ]
+    },
+    {
+      "word": "kaskader",
+      "hints": [
+        "kamera",
+        "ryzyko"
+      ]
+    },
+    {
+      "word": "przewodnik wycieczki",
+      "hints": [
+        "grupa",
+        "mapa"
+      ]
+    },
+    {
+      "word": "prezenter pogody",
+      "hints": [
+        "mapa",
+        "chmury"
+      ]
+    },
+    {
+      "word": "organizator wesela",
+      "hints": [
+        "harmonogram",
+        "stres"
+      ]
+    },
+    {
+      "word": "ślusarz",
+      "hints": [
+        "zamek",
+        "awaria"
+      ]
+    },
+    {
+      "word": "klepsydra",
+      "hints": [
+        "piasek",
+        "odliczanie"
+      ]
+    },
+    {
+      "word": "kompas",
+      "hints": [
+        "północ",
+        "wędrówka"
+      ]
+    },
+    {
+      "word": "kula śnieżna",
+      "hints": [
+        "pamiątka",
+        "półka"
+      ]
+    },
+    {
+      "word": "szczęśliwy talizman",
+      "hints": [
+        "przesąd",
+        "kieszeń"
+      ]
+    },
+    {
+      "word": "lakowa pieczęć",
+      "hints": [
+        "list",
+        "tajemnica"
+      ]
+    },
+    {
+      "word": "list w butelce",
+      "hints": [
+        "morze",
+        "wiadomość"
+      ]
+    },
+    {
+      "word": "kapsuła czasu",
+      "hints": [
+        "zakopana",
+        "przyszłość"
+      ]
+    },
+    {
+      "word": "sekretny pamiętnik",
+      "hints": [
+        "kłódka",
+        "wspomnienia"
+      ]
+    },
+    {
+      "word": "stare zdjęcie",
+      "hints": [
+        "album",
+        "rodzina"
+      ]
+    },
+    {
+      "word": "identyfikator",
+      "hints": [
+        "smycz",
+        "konferencja"
+      ]
+    },
+    {
+      "word": "biuro rzeczy znalezionych",
+      "hints": [
+        "zguba",
+        "dworzec"
+      ]
+    },
+    {
+      "word": "poczekalnia",
+      "hints": [
+        "numer",
+        "cisza"
+      ]
+    },
+    {
+      "word": "muzyka w windzie",
+      "hints": [
+        "piętra",
+        "niezręczność"
+      ]
+    },
+    {
+      "word": "gorące krzesło",
+      "hints": [
+        "pytania",
+        "presja"
+      ]
+    },
+    {
+      "word": "łańcuszek listów",
+      "hints": [
+        "koperta",
+        "znajomi"
+      ]
+    },
+    {
+      "word": "tajny uścisk dłoni",
+      "hints": [
+        "grupa",
+        "znak"
+      ]
+    },
+    {
+      "word": "straż sąsiedzka",
+      "hints": [
+        "ulica",
+        "noc"
+      ]
+    },
+    {
+      "word": "numerek w kolejce",
+      "hints": [
+        "automat",
+        "czekanie"
+      ]
+    },
+    {
+      "word": "zdjęcie grupowe",
+      "hints": [
+        "uśmiech",
+        "samowyzwalacz"
+      ]
+    },
+    {
+      "word": "viral",
+      "hints": [
+        "udostępnienia",
+        "telefon"
+      ]
+    },
+    {
+      "word": "mem",
+      "hints": [
+        "podpis",
+        "śmiech"
+      ]
+    },
+    {
+      "word": "influencer",
+      "hints": [
+        "kamera",
+        "współpraca"
+      ]
+    },
+    {
+      "word": "transmisja na żywo",
+      "hints": [
+        "czat",
+        "opóźnienie"
+      ]
+    },
+    {
+      "word": "sekcja komentarzy",
+      "hints": [
+        "dyskusja",
+        "powiadomienia"
+      ]
+    },
+    {
+      "word": "modny temat",
+      "hints": [
+        "hashtag",
+        "internet"
+      ]
+    },
+    {
+      "word": "fałszywe konto",
+      "hints": [
+        "zdjęcie",
+        "podejrzenie"
+      ]
+    },
+    {
+      "word": "deepfake",
+      "hints": [
+        "twarz",
+        "technologia"
+      ]
+    },
+    {
+      "word": "ostrzeżenie przed spoilerem",
+      "hints": [
+        "film",
+        "tajemnica"
+      ]
+    },
+    {
+      "word": "captcha",
+      "hints": [
+        "kratki",
+        "robot"
+      ]
+    },
+    {
+      "word": "reakcja łańcuchowa",
+      "hints": [
+        "pierwszy ruch",
+        "skutek"
+      ]
+    },
+    {
+      "word": "efekt domina",
+      "hints": [
+        "kostki",
+        "kolejność"
+      ]
+    },
+    {
+      "word": "efekt motyla",
+      "hints": [
+        "mała zmiana",
+        "daleki skutek"
+      ]
+    },
+    {
+      "word": "punkt krytyczny",
+      "hints": [
+        "granica",
+        "napięcie"
+      ]
+    },
+    {
+      "word": "efekt kuli śnieżnej",
+      "hints": [
+        "mały początek",
+        "narastanie"
+      ]
+    },
+    {
+      "word": "punkt przełomowy",
+      "hints": [
+        "decyzja",
+        "zmiana"
+      ]
+    },
+    {
+      "word": "druga szansa",
+      "hints": [
+        "powrót",
+        "nadzieja"
+      ]
+    },
+    {
+      "word": "zmiana zdania",
+      "hints": [
+        "rozmowa",
+        "wątpliwość"
+      ]
+    },
+    {
+      "word": "niezniszczalny bohater",
+      "hints": [
+        "film",
+        "szczęście fabularne"
+      ]
+    },
+    {
+      "word": "ukryta przyjemność",
+      "hints": [
+        "sekret",
+        "wolny wieczór"
+      ]
+    },
+    {
+      "word": "latarnia morska",
+      "hints": [
+        "wybrzeże",
+        "noc"
+      ]
+    },
+    {
+      "word": "obserwatorium",
+      "hints": [
+        "teleskop",
+        "gwiazdy"
+      ]
+    },
+    {
+      "word": "szklarnia",
+      "hints": [
+        "wilgoć",
+        "wiosna"
+      ]
+    },
+    {
+      "word": "planetarium",
+      "hints": [
+        "ciemność",
+        "kopuła"
+      ]
+    },
+    {
+      "word": "pchli targ",
+      "hints": [
+        "starocie",
+        "targowanie"
+      ]
+    },
+    {
+      "word": "pralnia samoobsługowa",
+      "hints": [
+        "monety",
+        "oczekiwanie"
+      ]
+    },
+    {
+      "word": "sąd",
+      "hints": [
+        "młotek",
+        "rozprawa"
+      ]
+    },
+    {
+      "word": "ogród na dachu",
+      "hints": [
+        "miasto",
+        "rośliny"
+      ]
+    },
+    {
+      "word": "opuszczony hotel",
+      "hints": [
+        "korytarz",
+        "wakacje"
+      ]
+    },
+    {
+      "word": "podziemne przejście",
+      "hints": [
+        "schody",
+        "miasto"
+      ]
+    },
+    {
+      "word": "maszyna czasu",
+      "hints": [
+        "zegarek",
+        "przyszłość"
+      ]
+    },
+    {
+      "word": "peleryna niewidka",
+      "hints": [
+        "tajemnica",
+        "znikanie"
+      ]
+    },
+    {
+      "word": "równoległy świat",
+      "hints": [
+        "lustro",
+        "wyobraźnia"
+      ]
+    },
+    {
+      "word": "bunt robotów",
+      "hints": [
+        "maszyna",
+        "przyszłość"
+      ]
+    },
+    {
+      "word": "sygnał z kosmosu",
+      "hints": [
+        "antena",
+        "noc"
+      ]
+    },
+    {
+      "word": "nawiedzony dom",
+      "hints": [
+        "skrzypienie",
+        "ciemność"
+      ]
+    },
+    {
+      "word": "mapa skarbów",
+      "hints": [
+        "krzyżyk",
+        "przygoda"
+      ]
+    },
+    {
+      "word": "sekretne przejście",
+      "hints": [
+        "ściana",
+        "zagadki"
+      ]
+    },
+    {
+      "word": "magiczny eliksir",
+      "hints": [
+        "fiolka",
+        "zmiana"
+      ]
+    },
+    {
+      "word": "gadające lustro",
+      "hints": [
+        "odbicie",
+        "bajka"
+      ]
+    },
+    {
+      "word": "zły numer",
+      "hints": [
+        "telefon",
+        "pomyłka"
+      ]
+    },
+    {
+      "word": "awaria prądu",
+      "hints": [
+        "świeczka",
+        "ciemność"
+      ]
+    },
+    {
+      "word": "telefon o północy",
+      "hints": [
+        "noc",
+        "niepokój"
+      ]
+    },
+    {
+      "word": "przepełniony samolot",
+      "hints": [
+        "brak miejsca",
+        "wakacje"
+      ]
+    },
+    {
+      "word": "puste miejsce",
+      "hints": [
+        "rezerwacja",
+        "oczekiwanie"
+      ]
+    },
+    {
+      "word": "tajemnicze pudełko",
+      "hints": [
+        "wstążka",
+        "ciekawość"
+      ]
+    },
+    {
+      "word": "zmiana planów w ostatniej chwili",
+      "hints": [
+        "telefon",
+        "pośpiech"
+      ]
+    },
+    {
+      "word": "fałszywy alarm",
+      "hints": [
+        "syrena",
+        "ulga"
+      ]
+    },
+    {
+      "word": "szczęśliwy traf",
+      "hints": [
+        "przypadek",
+        "radość"
+      ]
+    },
+    {
+      "word": "pomyłka w adresie",
+      "hints": [
+        "mapa",
+        "niespodzianka"
+      ]
+    },
+    {
+      "word": "pusta scena",
+      "hints": [
+        "kurtyna",
+        "cisza"
+      ]
+    }
+  ]
+}
