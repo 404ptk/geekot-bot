@@ -59,10 +59,12 @@ class HelpSelect(discord.ui.Select):
         super().__init__(placeholder="Wybierz kategorię pomocy…", options=options)
 
     async def callback(self, interaction):
-        self.view.category = self.values[0]
-        self.view.page = 0
-        self.view.render()
-        await interaction.response.edit_message(view=self.view, allowed_mentions=discord.AllowedMentions.none())
+        # Rendering removes this select from its view, so retain the owner first.
+        view = self.view
+        view.category = self.values[0]
+        view.page = 0
+        view.render()
+        await interaction.response.edit_message(view=view, allowed_mentions=discord.AllowedMentions.none())
 
 
 class HelpPageButton(discord.ui.Button):
@@ -72,9 +74,10 @@ class HelpPageButton(discord.ui.Button):
         self.direction = direction
 
     async def callback(self, interaction):
-        self.view.page += self.direction
-        self.view.render()
-        await interaction.response.edit_message(view=self.view, allowed_mentions=discord.AllowedMentions.none())
+        view = self.view
+        view.page += self.direction
+        view.render()
+        await interaction.response.edit_message(view=view, allowed_mentions=discord.AllowedMentions.none())
 
 
 class HelpView(discord.ui.LayoutView):
@@ -140,10 +143,13 @@ class HelpView(discord.ui.LayoutView):
     async def on_error(self, interaction, error, item):
         logger.error("Help panel error", exc_info=(type(error), error, error.__traceback__))
         message = "Nie udało się wyświetlić pomocy. Otwórz panel ponownie przez /pomoc."
-        if interaction.response.is_done():
-            await interaction.followup.send(message, ephemeral=True)
-        else:
-            await interaction.response.send_message(message, ephemeral=True)
+        try:
+            if interaction.response.is_done():
+                await interaction.followup.send(message, ephemeral=True)
+            else:
+                await interaction.response.send_message(message, ephemeral=True)
+        except discord.HTTPException:
+            logger.warning("Could not deliver help panel error response", exc_info=True)
 
 
 async def setup_help_commands(client: discord.Client, tree: app_commands.CommandTree, guild_id: int = None):
