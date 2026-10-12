@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 HIDDEN_HELP_COMMANDS = {"wspomnienie", "wspomnienia", "ytshorts"}
 
 HELP_CATEGORIES = (
-    ("faceit", "🎮 Faceit", "Profile, mapy, mecze i porównania", {"faceit", "maps", "last", "compare", "discordfaceit", "scout", "sieroty"}),
+    ("faceit", "🎮 Faceit", "Profile, mapy, mecze, analiza i porównania", {"faceit", "maps", "analiza", "last", "compare", "discordfaceit", "scout", "sieroty"}),
     ("cs2", "🎯 CS2", "Instanty, wyzwania i ceny skrzynek", {"instant", "wyzwania", "skrzynki"}),
     ("masny", "📊 Masny", "Tabela, wymówki i spawn", {"masny", "resetmasny", "wymowki", "spawn"}),
     ("games", "🕹️ Gry i wyjazdy", "Lista gier, Minecraft i wakacje", {"gry", "ile", "ilereset", "wakacje"}),

@@ -76,3 +76,6 @@ pomysly.md
 images/relations/*
 hltv.txt.txt
 /tests/
+
+# Local verification scripts
+faceit/test_analysis.py

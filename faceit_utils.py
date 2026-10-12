@@ -285,6 +285,14 @@ async def setup_faceit_commands(client: discord.Client, tree: app_commands.Comma
         faceit_nick_autocomplete=faceit_nick_autocomplete,
     )
 
+    from faceit.analysis import register_analysis_command
+
+    register_analysis_command(
+        tree=tree,
+        guild=guild,
+        faceit_nick_autocomplete=faceit_nick_autocomplete,
+    )
+
     register_last_command(
         tree=tree,
         guild=guild,
