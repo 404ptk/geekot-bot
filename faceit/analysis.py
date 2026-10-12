@@ -16,6 +16,7 @@ import discord
 from discord import app_commands
 
 from config.conf_faceit_live_settings import load_config
+from faceit.common import get_guild_emoji_text
 from faceit.maps import stat_number
 
 logger = logging.getLogger(__name__)
@@ -202,7 +203,9 @@ def fmt(value, precision=1):
 
 def escaped(value):
     # Keep user-controlled names within component limits and out of markdown syntax.
-    return discord.utils.escape_markdown(str(value).replace('\n', ' ')[:100])
+    # Names are used inside headings, bold labels or links, so hyphens cannot
+    # start a Markdown list here. Escaping them can appear literally on Discord.
+    return discord.utils.escape_markdown(str(value).replace('\n', ' ')[:100]).replace(r'\-', '-')
 
 
 def result_line(matches):
@@ -666,9 +669,11 @@ class AnalysisPageButton(discord.ui.Button):
 
 
 class AnalysisView(discord.ui.LayoutView):
-    def __init__(self, owner_id, report):
+    def __init__(self, owner_id, report, guild=None):
         super().__init__(timeout=600)
         self.owner_id, self.report = owner_id, report
+        faceit_logo = get_guild_emoji_text(guild, 'faceitlogo')
+        self.title_prefix = f'{faceit_logo} ' if faceit_logo else ''
         self.section, self.page = 'overview', 0
         self.message = None
         self.render()
@@ -683,7 +688,7 @@ class AnalysisView(discord.ui.LayoutView):
         container = discord.ui.Container(accent_color=0xFF5500)
         first, last = self.report.matches[0].date, self.report.matches[-1].date
         header = discord.ui.TextDisplay(
-            f'# Analiza [{escaped(player)}]({profile})\n'
+            f'# {self.title_prefix}Analiza [{escaped(player)}]({profile})\n'
             f'**{title}**\n'
             f'-# {first:%d.%m.%Y}–{last:%d.%m.%Y} · {len(self.report.matches)} meczów CS2 5v5'
         )
@@ -798,5 +803,5 @@ def register_analysis_command(tree, guild, faceit_nick_autocomplete):
             logger.exception('Cannot build FACEIT analysis')
             await interaction.followup.send('Nie udało się przygotować analizy. Spróbuj ponownie za chwilę.', ephemeral=True)
             return
-        view = AnalysisView(interaction.user.id, report)
+        view = AnalysisView(interaction.user.id, report, interaction.guild)
         view.message = await interaction.followup.send(view=view, ephemeral=True, wait=True, allowed_mentions=discord.AllowedMentions.none())

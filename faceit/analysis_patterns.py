@@ -17,10 +17,7 @@ class Pattern:
     peer_id: str | None = None
 
     def text(self):
-        text = f'**{self.title}**\n' + '\n'.join(self.lines)
-        if not self.descriptive:
-            text += '\n-# Sygnał do sprawdzenia; składy, mapy i przeciwnicy mogą się różnić.'
-        return text
+        return f'**{self.title}**\n' + '\n'.join(self.lines)
 
 
 # Each entry is a distinct question, not a variant for another name or map.
