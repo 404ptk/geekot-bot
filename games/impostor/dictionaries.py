@@ -84,3 +84,25 @@ def create_dictionary(guild_id, owner_id, name, text):
     temporary.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
     temporary.replace(DICTIONARY_FILE)
     return record
+
+
+def update_dictionary(guild_id, owner_id, dictionary_id, name, text):
+    name = normalize_text(name)
+    if not 2 <= len(name) <= 60:
+        raise ValueError('Nazwa słownika musi mieć od 2 do 60 znaków.')
+    words = parse_words(text)
+    data = load_store()
+    records = data['guilds'].get(str(guild_id), [])
+    record = next((item for item in records if item['id'] == dictionary_id), None)
+    if record is None or record['owner_id'] != owner_id:
+        raise ValueError('Nie znaleziono słownika, który możesz edytować.')
+    if any(item['id'] != dictionary_id and normalize_text(item['name']).casefold() == name.casefold()
+           for item in records):
+        raise ValueError('Słownik o tej nazwie już istnieje na serwerze. Wybierz inną nazwę.')
+    record['name'] = name
+    record['words'] = words
+    DICTIONARY_FILE.parent.mkdir(parents=True, exist_ok=True)
+    temporary = DICTIONARY_FILE.with_suffix('.tmp')
+    temporary.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
+    temporary.replace(DICTIONARY_FILE)
+    return record

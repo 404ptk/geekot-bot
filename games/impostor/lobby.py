@@ -6,7 +6,7 @@ from pathlib import Path
 
 import discord
 from discord import app_commands
-from games.impostor.dictionaries import create_dictionary, list_dictionaries
+from games.impostor.dictionaries import create_dictionary, list_dictionaries, update_dictionary
 
 logger = logging.getLogger(__name__)
 LOBBY_TIMEOUT = 600
@@ -258,7 +258,7 @@ class DictionarySelect(discord.ui.Select):
         await interaction.response.edit_message(view=view, allowed_mentions=discord.AllowedMentions.none())
 
 
-class CreateDictionaryModal(discord.ui.Modal, title='Utwórz słownik Impostora'):
+class CreateDictionaryModal(discord.ui.Modal):
     name_input = discord.ui.Label(text='Nazwa słownika', description='Np. Minecraft, zwierzęta, przedmioty.',
                                   component=discord.ui.TextInput(min_length=2, max_length=60))
     words_input = discord.ui.Label(text='Słowa oddzielone przecinkami', description='2–200 haseł, każde do 64 znaków. Spacje i powtórzenia zostaną uporządkowane.',
@@ -266,11 +266,12 @@ class CreateDictionaryModal(discord.ui.Modal, title='Utwórz słownik Impostora'
                                                                   placeholder='mucha, trawnik, dom, drzewo',
                                                                   min_length=3, max_length=4000))
 
-    def __init__(self, panel):
-        super().__init__(timeout=600)
+    def __init__(self, panel, record=None):
+        super().__init__(title='Edytuj słownik' if record else 'Utwórz słownik Impostora', timeout=600)
         self.panel = panel
-        self.name_input.component.default = panel.dictionary_name_draft
-        self.words_input.component.default = panel.dictionary_words_draft
+        self.record_id = record['id'] if record else None
+        self.name_input.component.default = record['name'] if record else panel.dictionary_name_draft
+        self.words_input.component.default = ','.join(record['words']) if record else panel.dictionary_words_draft
 
     async def interaction_check(self, interaction):
         return await self.panel.interaction_check(interaction)
@@ -279,14 +280,18 @@ class CreateDictionaryModal(discord.ui.Modal, title='Utwórz słownik Impostora'
         self.panel.dictionary_name_draft = self.name_input.component.value
         self.panel.dictionary_words_draft = self.words_input.component.value
         try:
-            record = create_dictionary(self.panel.key[0], interaction.user.id,
-                                       self.panel.dictionary_name_draft, self.panel.dictionary_words_draft)
+            if self.record_id:
+                record = update_dictionary(self.panel.key[0], interaction.user.id, self.record_id,
+                                           self.panel.dictionary_name_draft, self.panel.dictionary_words_draft)
+            else:
+                record = create_dictionary(self.panel.key[0], interaction.user.id,
+                                           self.panel.dictionary_name_draft, self.panel.dictionary_words_draft)
         except ValueError as error:
             await reply(interaction, str(error))
             return
         except OSError:
             logger.exception('Could not save impostor dictionary')
-            await reply(interaction, 'Nie udało się zapisać słownika. Spróbuj ponownie.')
+            await reply(interaction, 'Nie udało się zapisać zmian. Spróbuj ponownie.')
             return
         self.panel.dictionary_name_draft = ''
         self.panel.dictionary_words_draft = ''
@@ -357,9 +362,16 @@ class ImpostorPanel(ImpostorView):
                 elif len(record['words']) > 6:
                     preview += ', …'
                 preview = discord.utils.escape_markdown(preview)
-                container.add_item(discord.ui.TextDisplay(
+                card = discord.ui.TextDisplay(
                     f'### {name}\n{preview}\n-# {len(record["words"])} haseł · autor <@{record["owner_id"]}>'
-                ))
+                )
+                if record['owner_id'] == self.owner_id:
+                    container.add_item(discord.ui.Section(
+                        card,
+                        accessory=PanelButton(f'dictionary_edit:{record["id"]}', 'Edytuj'),
+                    ))
+                else:
+                    container.add_item(card)
             container.add_item(discord.ui.Separator())
             container.add_item(discord.ui.ActionRow(
                 PanelButton('dictionary_create', 'Utwórz słownik', discord.ButtonStyle.success),
@@ -426,6 +438,13 @@ class ImpostorPanel(ImpostorView):
             await interaction.response.edit_message(view=self, allowed_mentions=discord.AllowedMentions.none())
         elif action == 'dictionary_create':
             await interaction.response.send_modal(CreateDictionaryModal(self))
+        elif action.startswith('dictionary_edit:'):
+            dictionary_id = action.partition(':')[2]
+            record = next((item for item in list_dictionaries(self.key[0]) if item['id'] == dictionary_id), None)
+            if record is None or record['owner_id'] != self.owner_id:
+                await reply(interaction, 'Nie znaleziono słownika, który możesz edytować.')
+                return
+            await interaction.response.send_modal(CreateDictionaryModal(self, record))
         elif action == 'join':
             lobby = LOBBIES.get(self.key)
             if lobby:

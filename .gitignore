@@ -82,3 +82,5 @@ faceit/test_analysis.py
 
 # Runtime Impostor dictionaries
 /data/impostor/
+/ignored
+
