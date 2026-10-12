@@ -6,7 +6,12 @@ from pathlib import Path
 
 import discord
 from discord import app_commands
-from games.impostor.dictionaries import create_dictionary, list_dictionaries, update_dictionary
+from games.impostor.dictionaries import (
+    count_words_without_hints,
+    create_dictionary,
+    list_dictionaries,
+    update_dictionary,
+)
 
 logger = logging.getLogger(__name__)
 LOBBY_TIMEOUT = 600
@@ -363,7 +368,9 @@ class ImpostorPanel(ImpostorView):
                     preview += ', …'
                 preview = discord.utils.escape_markdown(preview)
                 card = discord.ui.TextDisplay(
-                    f'### {name}\n{preview}\n-# {len(record["words"])} haseł · autor <@{record["owner_id"]}>'
+                    f'### {name}\n{preview}\n-# {len(record["words"])} haseł · '
+                    f'bez podpowiedzi: {count_words_without_hints(record["words"])} · '
+                    f'autor <@{record["owner_id"]}>'
                 )
                 if record['owner_id'] == self.owner_id:
                     container.add_item(discord.ui.Section(

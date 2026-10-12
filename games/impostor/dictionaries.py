@@ -39,6 +39,19 @@ def parse_words(text):
     return words
 
 
+def count_words_without_hints(words):
+    """Count entries without a non-empty clue in the ``word:hint`` format."""
+    count = 0
+    for entry in words:
+        if not isinstance(entry, str):
+            count += 1
+            continue
+        word, separator, hint = entry.partition(':')
+        if not separator or not word.strip() or not hint.strip():
+            count += 1
+    return count
+
+
 def load_store():
     if not DICTIONARY_FILE.exists():
         return {'version': 1, 'guilds': {}}
