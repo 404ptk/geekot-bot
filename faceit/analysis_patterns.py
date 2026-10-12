@@ -17,9 +17,10 @@ class Pattern:
     peer_id: str | None = None
 
     def text(self):
-        label = ('Opis próby.' if self.descriptive else
-                 'Sygnał do sprawdzenia; składy, mapy i przeciwnicy mogą się różnić.')
-        return f'**{self.title}**\n' + '\n'.join(self.lines) + f'\n-# {label}'
+        text = f'**{self.title}**\n' + '\n'.join(self.lines)
+        if not self.descriptive:
+            text += '\n-# Sygnał do sprawdzenia; składy, mapy i przeciwnicy mogą się różnić.'
+        return text
 
 
 # Each entry is a distinct question, not a variant for another name or map.
@@ -46,6 +47,14 @@ PATTERN_CATALOG = {
     'map_pool': 'Koncentracja puli map i jej zmiana',
     'reciprocal': 'Obie osoby w dokładnie tych samych wspólnych meczach',
     'rival': 'Powtarzający się przeciwnik z nicku',
+    'teammate_matched': 'Relacja ADR z osobą po uwzględnieniu mapy i miesiąca',
+    'stop_result': 'Ostatni wynik a moment kończenia sesji',
+    'continue_loss_adr': 'Kontynuowanie po porażce a osobista dyspozycja',
+    'close_frequency': 'Zmiana częstości bliskich wyników',
+    'assist_profile': 'Asysty przy podobnym K/R',
+    'multikill_profile': 'Rundy 3K+ przy podobnym K/R',
+    'map_adjusted_trend': 'Trend ADR przy wspólnych wagach map',
+    'paired_correlation': 'Wspólny ruch ADR duetu po uwzględnieniu wyniku',
 }
 
 
@@ -124,7 +133,7 @@ def collect_patterns(report):
         peer_id = dataset['player']['player_id']
         peer_rows, _ = parse_matches(dataset)
         peer_by_id = {m.id: m for m in peer_rows if own_id in m.mates and m.adr is not None}
-        shared = [m for m in stats if peer_id in m.mates and m.id in peer_by_id]
+        shared = [m for m in stats if peer_id in m.mates and m.id in peer_by_id and m.win == peer_by_id[m.id].win]
         own_other = [m for m in stats if peer_id not in m.mates]
         peer_other = [m for m in peer_rows if own_id not in m.mates and m.adr is not None]
         if len(shared) < 20 or min(len(own_other), len(peer_other)) < 25:
@@ -373,5 +382,8 @@ def collect_patterns(report):
                 '-# To wyniki drużyny przeciw drużynie z tą osobą, nie bezpośrednich pojedynków.',
             ), True))
 
+    from faceit.analysis_context import collect_context_patterns
+
+    cards.extend(collect_context_patterns(report))
     assert len({card.key for card in cards}) == len(cards)
     return cards

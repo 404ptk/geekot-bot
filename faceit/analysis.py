@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 import logging
 import math
+import random
 from statistics import mean, stdev
 import time
 from urllib.parse import quote
@@ -108,6 +109,8 @@ class Match:
     triples: float | None = None
     quads: float | None = None
     pentas: float | None = None
+    assists: float | None = None
+    damage: float | None = None
     opponents: dict = field(default_factory=dict)
     session: int = 0
     previous: bool | None = None
@@ -162,6 +165,7 @@ def parse_matches(dataset):
                 rounds=stat_number(values, 'Rounds'), half=half if half is not None and half <= 12 else None,
                 doubles=stat_number(values, 'Double Kills'), triples=stat_number(values, 'Triple Kills'),
                 quads=stat_number(values, 'Quadro Kills'), pentas=stat_number(values, 'Penta Kills'),
+                assists=stat_number(values, 'Assists'), damage=stat_number(values, 'Damage'),
                 opponents={p['player_id']: p.get('nickname') or 'Nieznany gracz'
                            for other, team in teams.items() if other != side
                            for p in team.get('players', []) if p.get('player_id')},
@@ -408,15 +412,17 @@ class AnalysisReport:
             f'ADR: {sum(m.adr is not None for m in matches)}. K/D: {sum(m.kd is not None for m in matches)}. '
             f'Pominięte nieprawidłowe wpisy: {self.skipped}.\nBrak pola oznacza brak danych, a nie zero.',
             '**Jak czytać liczby**\nWR to odsetek wygranych. ADR, K/D, K/R i HS to średnie z dostępnych meczów, bez ważenia długością meczu. Przedziały WR pokazują niepewność przy małej próbie.',
-            '**Jak powstają obserwacje**\nSygnały wymagają minimalnej próby, wyraźnej różnicy oraz zgodnego kierunku w dwóch częściach porównania. Karty „Opis próby” pokazują zwykłe ciekawostki, bez oceny istotności. Dla sesji sprawdzamy też różne długości przerw. Nie wymuszamy liczby wniosków ani nie tworzymy osobnej obserwacji dla każdej mapy.',
+            '**Jak powstają obserwacje**\nSygnały wymagają minimalnej próby, wyraźnej różnicy oraz zgodnego kierunku w dwóch częściach porównania. Karty opisowe pokazują zwykłe ciekawostki, bez oceny istotności. Dla sesji sprawdzamy też różne długości przerw. Nie wymuszamy liczby wniosków ani nie tworzymy osobnej obserwacji dla każdej mapy.',
             '**Ograniczenia**\nTo analiza eksploracyjna: wybór spośród wielu zależności zwiększa ryzyko przypadkowego wyniku. Przedziały nie są skorygowane o ten wybór; mecze z tej samej sesji mogą być zależne. Potwierdzenie wymaga nowych meczów. Nie wnioskujemy o winie gracza, taktyce, party ani historycznym ELO. Nie analizujemy dem.',
             '**Relacje z graczami**\nSprawdzamy ograniczoną liczbę najczęstszych współgraczy i wyświetlamy najwyżej jedną kartę danego rodzaju. Dla wyraźnej relacji ADR możemy pobrać dodatkowo historię jednej osoby. Analiza obustronna wymaga zgodności ID meczów i obecności obu graczy w tej samej drużynie.',
             f'**Aktualność**\nDane pobrano <t:{int(self.fetched_at)}:R>. Pamięć podręczna działa przez 15 minut. Godziny: Europe/Warsaw.',
         ]
+        insights = self.insights()
+        insights = insights[:1] + random.sample(insights[1:], min(5, len(insights) - 1))
         sections = (
             ('overview', overview), ('maps', map_blocks), ('time', time_blocks),
             ('sessions', session_blocks), ('roster', roster_blocks), ('form', form_blocks),
-            ('insights', self.insights()), ('sources', sources),
+            ('insights', insights), ('sources', sources),
         )
         result = {}
         for key, blocks in sections:
@@ -551,7 +557,7 @@ class AnalysisReport:
 
 
     def insights(self):
-        blocks = ['**Obserwacje z tej historii**\nSygnały wymagają sprawdzenia w nowych meczach. Karty opisowe są oznaczone „Opis próby”; nie wymagają wykrycia silnej zależności.']
+        blocks = ['**Obserwacje z tej historii**\nSygnały wymagają sprawdzenia w nowych meczach. Karty opisowe pokazują zwykłe statystyki i nie wymagają wykrycia silnej zależności.']
         pairs = paired_sessions(self.matches)
         diffs = session_differences(pairs)
         if len(pairs) >= 30:
