@@ -79,3 +79,6 @@ hltv.txt.txt
 
 # Local verification scripts
 faceit/test_analysis.py
+
+# Runtime Impostor dictionaries
+/data/impostor/

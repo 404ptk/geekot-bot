@@ -16,6 +16,7 @@ from commands import fun as fun_module
 from commands import help as help_module
 from commands import excuses as excuses_module
 from commands import instants
+from games.impostor import lobby as impostor_module
 from commands import challenges as challenges_module
 from commands import mod as mod_module
 from commands import minecraft
@@ -201,6 +202,7 @@ async def on_ready():
         ("Minecraft commands", minecraft.setup_minecraft_commands(client, client.tree, guild_id=GUILD_ID)),
         ("Help commands", help_module.setup_help_commands(client, client.tree, guild_id=GUILD_ID)),
         ("Instants commands", instants.setup_instants_commands(client, client.tree, guild_id=GUILD_ID)),
+        ("Impostor commands", impostor_module.setup_impostor_commands(client, client.tree, guild_id=GUILD_ID)),
         ("Challenges commands", challenges_module.setup_challenges_commands(client, client.tree, guild_id=GUILD_ID)),
         ("Mod commands", mod_module.setup_mod_commands(client, client.tree, guild_id=GUILD_ID)),
         ("Faceit commands", faceit_utils.setup_faceit_commands(client, client.tree, guild_id=GUILD_ID)),
