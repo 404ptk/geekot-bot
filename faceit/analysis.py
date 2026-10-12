@@ -214,12 +214,9 @@ def result_line(matches):
 
 
 def metrics_line(matches, *, include_hs=False):
-    n = sum(match.adr is not None for match in matches)
     text = f"**ADR:** `{fmt(average(matches, 'adr'))}` ▫️ **K/D:** `{fmt(average(matches, 'kd'), 2)}` ▫️ **K/R:** `{fmt(average(matches, 'kr'), 2)}`"
     if include_hs:
         text += f" ▫️ **HS:** `{fmt(average(matches, 'hs'))}%`"
-    if n < len(matches):
-        text += f'\n-# ADR dostępny w {n} z {len(matches)} meczów.'
     return text
 
 
@@ -336,7 +333,7 @@ class AnalysisReport:
         if not maps:
             map_blocks.append('Brak statystyk map w pobranych danych.')
 
-        time_blocks = ['**Pora rozpoczęcia · czas polski**\nKażdy mecz przypisano do godziny rozpoczęcia. Różnice mogą wynikać ze składów i przeciwników.']
+        time_blocks = []
         for label, test in (
             ('06:00–17:59', lambda hour: 6 <= hour < 18),
             ('18:00–21:59', lambda hour: 18 <= hour < 22),
@@ -346,10 +343,13 @@ class AnalysisReport:
             if group:
                 time_blocks.append(f'**{label}**\n{result_line(group)}\n{metrics_line(group)}')
         weekdays = ('Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek', 'Sobota', 'Niedziela')
+        weekday_lines = []
         for day, label in enumerate(weekdays):
             group = [m for m in matches if m.date.weekday() == day]
             if group:
-                time_blocks.append(f'**{label}**\n{result_line(group)}')
+                weekday_lines.append(f'### {label}\n{result_line(group)}')
+        if weekday_lines:
+            time_blocks.append('\n'.join(weekday_lines))
 
         session_blocks = ['**Przebieg sesji**\nNowa sesja zaczyna się po przerwie ponad 90 minut. Nakładające się czasy rozdzielają sesje. Najstarszą sesję pomijamy w porównaniach, bo historia może urywać jej początek.']
         # Descriptive positions use the same complete session boundaries.
@@ -372,10 +372,10 @@ class AnalysisReport:
                 '\n-# Średnią kolejnych meczów liczymy osobno dla każdej sesji.')
 
         roster_blocks = ['**Współgracze i skład**\nObecność w drużynie nie dowodzi wspólnego party. „Znajomi” to gracze z listy Faceit w konfiguracji bota; brak ich w meczu nie oznacza solo queue.']
-        for count in range(5):
+        for count, label in enumerate(('Solo', 'Duo', '3stack', '4stack', '5stack')):
             group = [m for m in matches if self.known_count(m) == count]
             if group:
-                roster_blocks.append(f'**{count} znajomych w drużynie**\n{result_line(group)}\n{metrics_line(group)}')
+                roster_blocks.append(f'**{label}**\n{result_line(group)}\n{metrics_line(group)}')
         mates = defaultdict(list)
         names = {}
         for match in matches:
@@ -385,8 +385,7 @@ class AnalysisReport:
         for player_id, group in sorted(mates.items(), key=lambda pair: -len(pair[1]))[:15]:
             if len(group) < 5:
                 continue
-            without = [m for m in matches if player_id not in m.mates]
-            roster_blocks.append(f'**Z {escaped(names[player_id])}**\n{result_line(group)}\n{metrics_line(group)}\n-# Bez tej osoby: {fmt(winrate(without))}% WR ({len(without)} meczów).')
+            roster_blocks.append(f'**Z {escaped(names[player_id])}**\n{result_line(group)}\n{metrics_line(group)}')
 
         form_blocks = []
         for previous, label in [(False, 'Następny mecz po porażce'), (True, 'Następny mecz po zwycięstwie')]:
@@ -420,7 +419,7 @@ class AnalysisReport:
                 heading, separator, body = block.partition('\n')
                 if heading.startswith('**') and heading.endswith('**'):
                     heading = f'### {heading[2:-2]}'
-                if index == 0 and key not in ('overview', 'insights', 'form'):
+                if index == 0 and key not in ('overview', 'insights', 'form', 'time'):
                     body = '\n'.join(f'-# {line}' for line in body.splitlines())
                 styled.append(heading + separator + body)
             result[key] = pack_pages(styled)
