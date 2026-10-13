@@ -77,7 +77,7 @@ def load_internet_dictionary():
     try:
         data = json.loads(INTERNET_DICTIONARY_FILE.read_text(encoding='utf-8'))
         words = data['words']
-        if data.get('version') != 1 or not isinstance(words, list) or len(words) != 200:
+        if data.get('version') != 1 or not isinstance(words, list) or not words:
             raise ValueError
         for entry in words:
             if (not isinstance(entry, dict) or not isinstance(entry.get('word'), str)

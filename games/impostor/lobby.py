@@ -33,6 +33,8 @@ INTERNET_DICTIONARY_NAME = 'Polski internet'
 CUSTOM_DICTIONARIES_PER_PAGE = 22
 # One open lobby per channel; separate channels can host separate groups.
 LOBBIES = {}
+ASSOCIATION_LOBBIES = {}
+ASSOCIATION_LOGO = Path(__file__).resolve().parents[1] / "skojarzenia" / "skojarzenia.png"
 _CREATE_LOCK = asyncio.Lock()
 
 
@@ -56,8 +58,8 @@ def dictionary_names(selected, guild_id):
     return ', '.join(names)
 
 
-def logo_file():
-    return discord.File(LOGO_FILE, filename=LOGO_FILENAME)
+def logo_file(associations=False):
+    return discord.File(ASSOCIATION_LOGO if associations else LOGO_FILE, filename=LOGO_FILENAME)
 
 
 def role_file(is_impostor):
@@ -90,7 +92,7 @@ class ImpostorView(discord.ui.LayoutView):
 
 
 class PlayerCard(ImpostorView):
-    def __init__(self, is_impostor, word, hint, starter_id, end_at):
+    def __init__(self, is_impostor, word, hint, starter_id, end_at, associations=False):
         super().__init__(timeout=None)
         role = 'impostor' if is_impostor else 'player'
         filename = ROLE_IMAGE_FILES[role][0]
@@ -99,10 +101,14 @@ class PlayerCard(ImpostorView):
                   if is_impostor and hint else
                   'Nie masz podpowiedzi — spróbuj odgadnąć hasło.' if is_impostor else
                   'Hasło: **' + discord.utils.escape_markdown(word) + '**')
+        if associations:
+            title = 'Nie znasz hasła' if is_impostor else 'Twoje hasło'
+            detail = 'Odpowiadaj na pytania i spróbuj odgadnąć hasło.' if is_impostor else 'Hasło: **' + discord.utils.escape_markdown(word) + '**'
         container = discord.ui.Container(accent_color=0xE74C3C if is_impostor else 0x2ECC71)
-        container.add_item(discord.ui.MediaGallery(
-            discord.MediaGalleryItem(f'attachment://{filename}', description=role)
-        ))
+        if not associations:
+            container.add_item(discord.ui.MediaGallery(
+                discord.MediaGalleryItem(f'attachment://{filename}', description=role)
+            ))
         container.add_item(discord.ui.Separator())
         container.add_item(discord.ui.TextDisplay(f'# {title}\n{detail}'))
         container.add_item(discord.ui.Separator())
@@ -115,17 +121,20 @@ class PlayerCard(ImpostorView):
 class Lobby:
     def __init__(self, guild_id, channel_id, owner_id, capacity, hints, duration=10,
                  dictionaries=(STANDARD_DICTIONARY_ID, INTERNET_DICTIONARY_ID),
-                 owner_interaction=None):
+                 owner_interaction=None, associations=False):
         if not 3 <= capacity <= 10:
             raise ValueError('Lobby musi mieć od 3 do 10 graczy.')
         available = {STANDARD_DICTIONARY_ID, INTERNET_DICTIONARY_ID} | {record['id'] for record in list_dictionaries(guild_id)}
         if not dictionaries or not set(dictionaries) <= available:
             raise ValueError('Wybierz przynajmniej jeden dostępny słownik.')
+        self.associations = associations
+        self.lobbies = ASSOCIATION_LOBBIES if associations else LOBBIES
+        self.order = []
         self.key = (guild_id, channel_id)
         self.owner_id = owner_id
         self.capacity = capacity
-        self.impostors = impostor_count(capacity)
-        self.hints = hints
+        self.impostors = 1 if associations else impostor_count(capacity)
+        self.hints = hints and not associations
         self.duration = duration
         self.dictionaries = tuple(key for key in [STANDARD_DICTIONARY_ID, INTERNET_DICTIONARY_ID,
                                                   *(record['id'] for record in list_dictionaries(guild_id))]
@@ -154,8 +163,8 @@ class Lobby:
         self.activity.set()
 
     def release(self):
-        if LOBBIES.get(self.key) is self:
-            del LOBBIES[self.key]
+        if self.lobbies.get(self.key) is self:
+            del self.lobbies[self.key]
         if self.state != 'finished' or not self.roles or self.impostors_revealed:
             self.view.stop()
         for task in (self.timer, self.game_timer):
@@ -198,9 +207,10 @@ class Lobby:
 
     async def send_player_card(self, interaction, user_id):
         role = self.roles[user_id]
-        view = PlayerCard(role['impostor'], self.word, role['hint'], self.starter_id, self.end_at)
+        view = PlayerCard(role['impostor'], self.word, role['hint'], self.starter_id, self.end_at, self.associations)
         await interaction.followup.send(
-            view=view, file=role_file(role['impostor']), ephemeral=True,
+            view=view, ephemeral=True,
+            **({} if self.associations else {'file': role_file(role['impostor'])}),
             allowed_mentions=discord.AllowedMentions.none(),
         )
 
@@ -210,7 +220,7 @@ class Lobby:
         except ValueError as error:
             await reply(interaction, str(error))
             return
-        self.impostors = impostor_count(len(self.players))
+        self.impostors = 1 if self.associations else impostor_count(len(self.players))
         chosen = random.choice(entries)
         self.word = chosen['word'].strip()
         hints = [hint.strip() for hint in chosen.get('hints', []) if isinstance(hint, str) and hint.strip()]
@@ -221,7 +231,11 @@ class Lobby:
                       'hint': clue if user_id in impostor_ids else ''}
             for user_id in self.players
         }
-        self.starter_id = random.choice(self.players)
+        if self.associations:
+            self.order = random.sample(self.players, len(self.players))
+            self.starter_id = self.order[0]
+        else:
+            self.starter_id = random.choice(self.players)
         self.start_timestamp = int(time.time())
         self.end_at = self.start_timestamp + self.duration * 60
         self.state = 'playing'
@@ -298,7 +312,8 @@ class Lobby:
                 names = ', '.join(f'<@{user_id}>' for user_id in impostor_ids)
                 self.impostors_revealed = True
                 await interaction.response.send_message(
-                    f'🎭 **Impostor{"zy" if len(impostor_ids) > 1 else ""}:** {names}',
+                    (f'🧩 **Osoba bez hasła:** {names}' if self.associations else
+                     f'🎭 **Impostor{"zy" if len(impostor_ids) > 1 else ""}:** {names}'),
                     allowed_mentions=discord.AllowedMentions.none(),
                 )
                 self.view.render()
@@ -329,7 +344,7 @@ class Lobby:
             return
         await interaction.response.defer(ephemeral=True)
         async with self.lock:
-            if self.state != 'waiting' or LOBBIES.get(self.key) is not self:
+            if self.state != 'waiting' or self.lobbies.get(self.key) is not self:
                 await reply(interaction, 'To lobby jest już zamknięte.')
                 return
             now = time.monotonic()
@@ -394,7 +409,7 @@ class LobbyView(ImpostorView):
         lobby = self.lobby
         active = lobby.state == 'waiting'
         full = len(lobby.players) == lobby.capacity
-        shown_impostors = (impostor_count(max(3, len(lobby.players))) if active else lobby.impostors)
+        shown_impostors = 1 if lobby.associations else (impostor_count(max(3, len(lobby.players))) if active else lobby.impostors)
         title, status = {
             'waiting': ('🎭 Lobby Impostora',
                         'Twórca może rozpocząć grę.' if len(lobby.players) >= 3 else 'Dołącz przyciskiem poniżej. Potrzeba minimum 3 graczy.'),
@@ -405,15 +420,17 @@ class LobbyView(ImpostorView):
                         'Minęło 15 minut od utworzenia.' if lobby.expiry_reason == 'max_duration'
                         else 'Minęło 10 minut bez aktywności.'),
         }[lobby.state]
+        if lobby.associations:
+            title = title.replace('🎭', '🧩').replace('Lobby Impostora', 'Lobby Skojarzeń')
         container = discord.ui.Container(accent_color=0x5865F2 if active else 0x747F8D)
         add_logo(container)
         container.add_item(discord.ui.Separator())
         container.add_item(discord.ui.TextDisplay(
             f'# {title}\n{status}\n'
             f'**Twórca:** <@{lobby.owner_id}>\n'
-            f'**Gracze:** `{len(lobby.players)}/{lobby.capacity}` ▫️ **Impostorzy:** `{shown_impostors}`\n'
-            f'**Czas gry:** `{lobby.duration} min`\n'
-            f'**Podpowiedzi:** `{"Tak" if lobby.hints else "Nie"}`\n'
+            f'**Gracze:** `{len(lobby.players)}/{lobby.capacity}` ▫️ **{"Bez hasła" if lobby.associations else "Impostorzy"}:** `{shown_impostors}`\n'
+            f'**Czas gry:** `{lobby.duration} min`\n' +
+            ('' if lobby.associations else f'**Podpowiedzi:** `{"Tak" if lobby.hints else "Nie"}`\n') +
             f'**Słowniki:** `{dictionary_names(lobby.dictionaries, lobby.key[0])}`'
         ))
         container.add_item(discord.ui.Separator())
@@ -440,6 +457,17 @@ class LobbyView(ImpostorView):
             container.add_item(discord.ui.ActionRow(
                 LobbyButton(lobby, 'show_impostor', 'Pokaż impostora', discord.ButtonStyle.secondary),
             ))
+        if lobby.associations and lobby.order:
+            container.add_item(discord.ui.Separator())
+            container.add_item(discord.ui.TextDisplay(
+                '### Kolejność pytań\n' + '\n'.join(
+                    f'{index + 1}. <@{user_id}> → <@{lobby.order[(index + 1) % len(lobby.order)]}>'
+                    for index, user_id in enumerate(lobby.order)
+                ) + '\nKażdy pyta kolejną osobę. Po pełnym okrążeniu powtarzajcie tę samą kolejność. '
+                'Odpowiadajcie skojarzeniami z hasłem, nie zdradzając go wprost.'
+            ))
+        if lobby.associations:
+            association_labels(container)
         self.add_item(container)
 
 
@@ -503,13 +531,13 @@ class DictionarySelect(discord.ui.Select):
         options = [discord.SelectOption(
             label=STANDARD_DICTIONARY_NAME,
             value=STANDARD_DICTIONARY_ID,
-            description='400 wbudowanych haseł',
+            description=f'{len(load_standard_dictionary())} wbudowanych haseł',
             default=STANDARD_DICTIONARY_ID in selected,
         )]
         options.append(discord.SelectOption(
             label=INTERNET_DICTIONARY_NAME,
             value=INTERNET_DICTIONARY_ID,
-            description='200 haseł o polskim internecie i memach',
+            description=f'{len(load_internet_dictionary())} haseł o polskim internecie i memach',
             default=INTERNET_DICTIONARY_ID in selected,
         ))
         options.extend(discord.SelectOption(
@@ -541,7 +569,7 @@ class CreateDictionaryModal(discord.ui.Modal):
                                                                   min_length=3, max_length=4000))
 
     def __init__(self, panel, record=None):
-        super().__init__(title='Edytuj słownik' if record else 'Utwórz słownik Impostora', timeout=600)
+        super().__init__(title='Edytuj słownik' if record else ('Utwórz słownik Skojarzeń' if panel.associations else 'Utwórz słownik Impostora'), timeout=600)
         self.panel = panel
         self.record_id = record['id'] if record else None
         self.name_input.component.default = record['name'] if record else panel.dictionary_name_draft
@@ -574,7 +602,7 @@ class CreateDictionaryModal(discord.ui.Modal):
         self.panel.render()
         if self.panel.is_finished():
             await interaction.response.send_message(
-                f'Słownik zapisany: {len(record["words"])} haseł. Otwórz /impostor, aby go zobaczyć.',
+                f'Słownik zapisany: {len(record["words"])} haseł. Otwórz /{"skojarzenia" if self.panel.associations else "impostor"}, aby go zobaczyć.',
                 ephemeral=True, allowed_mentions=discord.AllowedMentions.none())
         else:
             await interaction.response.edit_message(view=self.panel, allowed_mentions=discord.AllowedMentions.none())
@@ -584,8 +612,10 @@ class CreateDictionaryModal(discord.ui.Modal):
 
 
 class ImpostorPanel(ImpostorView):
-    def __init__(self, owner_id, guild_id, channel):
+    def __init__(self, owner_id, guild_id, channel, associations=False):
         super().__init__(timeout=600)
+        self.associations = associations
+        self.lobbies = ASSOCIATION_LOBBIES if associations else LOBBIES
         self.owner_id = owner_id
         self.key = (guild_id, channel.id)
         self.channel = channel
@@ -613,15 +643,16 @@ class ImpostorPanel(ImpostorView):
                                       if key in (STANDARD_DICTIONARY_ID, INTERNET_DICTIONARY_ID) or key in available_ids)
             container.add_item(discord.ui.TextDisplay(
                 '# 🎭 Stwórz lobby\nWybierz liczbę graczy, czas gry, podpowiedzi i słowniki.\n'
-                f'**Gracze:** `{self.capacity}` ▫️ **Impostorzy:** `{impostor_count(self.capacity)}`\n'
-                f'**Czas gry:** `{self.duration} min`\n'
-                f'**Podpowiedzi:** `{"Tak" if self.hints else "Nie"}`\n'
+                f'**Gracze:** `{self.capacity}` ▫️ **{"Bez hasła" if self.associations else "Impostorzy"}:** `{1 if self.associations else impostor_count(self.capacity)}`\n'
+                f'**Czas gry:** `{self.duration} min`\n' +
+                ('' if self.associations else f'**Podpowiedzi:** `{"Tak" if self.hints else "Nie"}`\n') +
                 f'**Słowniki:** `{dictionary_names(self.dictionaries, self.key[0])}`\n'
                 '-# Liczba graczy obejmuje Ciebie — twórca dołącza automatycznie.'
             ))
             container.add_item(discord.ui.Separator())
             container.add_item(discord.ui.ActionRow(PlayerCountSelect(self.capacity)))
-            container.add_item(discord.ui.ActionRow(HintsSelect(self.hints)))
+            if not self.associations:
+                container.add_item(discord.ui.ActionRow(HintsSelect(self.hints)))
             container.add_item(discord.ui.ActionRow(DurationSelect(self.duration)))
             records = list_dictionaries(self.key[0])
             select_pages = max(1, (len(records) + CUSTOM_DICTIONARIES_PER_PAGE - 1) // CUSTOM_DICTIONARIES_PER_PAGE)
@@ -715,7 +746,7 @@ class ImpostorPanel(ImpostorView):
                 ))
         else:
             container.add_item(discord.ui.TextDisplay('# 🎭 Impostor\nStwórz lobby albo dołącz do gry na tym kanale.'))
-            lobby = LOBBIES.get(self.key)
+            lobby = self.lobbies.get(self.key)
             container.add_item(discord.ui.Separator())
             container.add_item(discord.ui.Section(
                 discord.ui.TextDisplay('### Nowa gra\nUstaw liczbę graczy, podpowiedzi i słowniki.'),
@@ -746,12 +777,14 @@ class ImpostorPanel(ImpostorView):
             ))
         self.footer = discord.ui.TextDisplay('-# Panel prywatny • wygasa po 10 minutach bezczynności')
         container.add_item(self.footer)
+        if self.associations:
+            association_labels(container)
         self.add_item(container)
 
     async def interaction_check(self, interaction):
         if interaction.user.id == self.owner_id:
             return True
-        await reply(interaction, 'Otwórz własny panel przez /impostor.')
+        await reply(interaction, 'Otwórz własny panel przez /skojarzenia.' if self.associations else 'Otwórz własny panel przez /impostor.')
         return False
 
     async def action(self, interaction, action):
@@ -819,7 +852,7 @@ class ImpostorPanel(ImpostorView):
                 ephemeral=True, allowed_mentions=discord.AllowedMentions.none(),
             )
         elif action == 'join':
-            lobby = LOBBIES.get(self.key)
+            lobby = self.lobbies.get(self.key)
             if lobby:
                 await lobby.action(interaction, 'join')
                 self.render()
@@ -832,14 +865,14 @@ class ImpostorPanel(ImpostorView):
                 return
             await interaction.response.defer(ephemeral=True)
             async with _CREATE_LOCK:
-                if self.key in LOBBIES:
+                if self.key in self.lobbies:
                     await reply(interaction, 'Na tym kanale istnieje już lobby. Dołącz do niego albo poczekaj na zakończenie.')
                     return
                 lobby = Lobby(*self.key, self.owner_id, self.capacity, self.hints, self.duration,
-                              self.dictionaries, interaction)
-                LOBBIES[self.key] = lobby
+                              self.dictionaries, interaction, associations=self.associations)
+                self.lobbies[self.key] = lobby
                 try:
-                    lobby.message = await self.channel.send(view=lobby.view, file=logo_file(),
+                    lobby.message = await self.channel.send(view=lobby.view, file=logo_file(self.associations),
                                                             allowed_mentions=discord.AllowedMentions.none())
                 except BaseException:
                     lobby.release()
@@ -855,7 +888,7 @@ class ImpostorPanel(ImpostorView):
         for item in self.walk_children():
             if isinstance(item, (discord.ui.Button, discord.ui.Select)):
                 item.disabled = True
-        self.footer.content = '-# Panel wygasł. Otwórz nowy przez /impostor.'
+        self.footer.content = f'-# Panel wygasł. Otwórz nowy przez /{"skojarzenia" if self.associations else "impostor"}.'
         if self.message:
             try:
                 await self.message.edit(view=self, allowed_mentions=discord.AllowedMentions.none())
@@ -871,5 +904,28 @@ async def setup_impostor_commands(client, tree, guild_id=None):
     async def impostor(interaction: discord.Interaction):
         panel = ImpostorPanel(interaction.user.id, interaction.guild_id, interaction.channel)
         await interaction.response.send_message(view=panel, file=logo_file(), ephemeral=True,
+                                                allowed_mentions=discord.AllowedMentions.none())
+        panel.message = await interaction.original_response()
+
+
+def association_labels(container):
+    """Use the shared lobby controls with association-specific wording."""
+    for item in container.walk_children():
+        if isinstance(item, discord.ui.TextDisplay):
+            item.content = (item.content.replace('🎭 Impostor', '🧩 Skojarzenia')
+                            .replace('liczbę graczy, czas gry, podpowiedzi i słowniki', 'liczbę graczy, czas gry i słowniki')
+                            .replace('liczbę graczy, podpowiedzi i słowniki', 'liczbę graczy, czas gry i słowniki'))
+        elif isinstance(item, discord.ui.Button) and item.label == 'Pokaż impostora':
+            item.label = 'Pokaż osobę bez hasła'
+
+
+async def setup_associations_commands(client, tree, guild_id=None):
+    guild = discord.Object(id=guild_id) if guild_id else None
+
+    @tree.command(name='skojarzenia', description='Gra w pytania i skojarzenia: jedna osoba nie zna hasła', guild=guild)
+    @app_commands.guild_only()
+    async def skojarzenia(interaction: discord.Interaction):
+        panel = ImpostorPanel(interaction.user.id, interaction.guild_id, interaction.channel, associations=True)
+        await interaction.response.send_message(view=panel, file=logo_file(True), ephemeral=True,
                                                 allowed_mentions=discord.AllowedMentions.none())
         panel.message = await interaction.original_response()
