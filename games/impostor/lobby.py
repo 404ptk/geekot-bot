@@ -165,7 +165,7 @@ class Lobby:
     def release(self):
         if self.lobbies.get(self.key) is self:
             del self.lobbies[self.key]
-        if self.state != 'finished' or not self.roles or self.impostors_revealed:
+        if self.state != 'finished' or not self.roles:
             self.view.stop()
         for task in (self.timer, self.game_timer):
             if task and task is not asyncio.current_task():
@@ -221,7 +221,10 @@ class Lobby:
             await reply(interaction, str(error))
             return
         self.impostors = 1 if self.associations else impostor_count(len(self.players))
-        chosen = random.choice(entries)
+        # A replay should use a different word whenever the dictionaries allow it.
+        fresh_entries = [entry for entry in entries if entry['word'].strip() != self.word]
+        chosen = random.choice(fresh_entries or entries)
+        self.impostors_revealed = False
         self.word = chosen['word'].strip()
         hints = [hint.strip() for hint in chosen.get('hints', []) if isinstance(hint, str) and hint.strip()]
         clue = random.choice(hints) if self.hints and hints else ''
@@ -297,6 +300,26 @@ class Lobby:
             logger.warning('Could not update expired impostor lobby', exc_info=True)
 
     async def action(self, interaction, action):
+        if action == 'replay':
+            if interaction.user.id != self.owner_id:
+                await reply(interaction, 'Tylko twórca lobby może rozpocząć kolejną rundę.')
+                return
+            await interaction.response.defer(ephemeral=True)
+            async with self.lock:
+                if self.state != 'finished' or not self.roles:
+                    await reply(interaction, 'Kolejną rundę możesz rozpocząć po zakończeniu gry.')
+                    return
+                async with _CREATE_LOCK:
+                    if self.key in self.lobbies:
+                        await reply(interaction, 'Na tym kanale istnieje już nowe lobby lub trwa gra. Poczekaj na jej zakończenie.')
+                        return
+                    self.lobbies[self.key] = self
+                    try:
+                        await self.begin_game(interaction)
+                    finally:
+                        if self.state != 'playing' and self.lobbies.get(self.key) is self:
+                            del self.lobbies[self.key]
+            return
         if action in ('end_game', 'show_impostor'):
             if interaction.user.id != self.owner_id:
                 await reply(interaction, 'Tylko twórca lobby może zakończyć grę lub pokazać impostorów.')
@@ -321,8 +344,6 @@ class Lobby:
                     await self.message.edit(view=self.view, allowed_mentions=discord.AllowedMentions.none())
                 except discord.HTTPException:
                     logger.warning('Could not update lobby after revealing impostors', exc_info=True)
-                if self.state == 'finished':
-                    self.view.stop()
                 return
             await interaction.response.defer(ephemeral=True)
             async with self.lock:
@@ -453,10 +474,12 @@ class LobbyView(ImpostorView):
                 LobbyButton(lobby, 'end_game', 'Zakończ grę', discord.ButtonStyle.danger),
                 LobbyButton(lobby, 'show_impostor', 'Pokaż impostora', discord.ButtonStyle.secondary),
             ))
-        elif lobby.state == 'finished' and lobby.roles and not lobby.impostors_revealed:
-            container.add_item(discord.ui.ActionRow(
-                LobbyButton(lobby, 'show_impostor', 'Pokaż impostora', discord.ButtonStyle.secondary),
-            ))
+        elif lobby.state == 'finished' and lobby.roles:
+            controls = [LobbyButton(lobby, 'replay', 'Zagraj ponownie', discord.ButtonStyle.success)]
+            if not lobby.impostors_revealed:
+                controls.append(LobbyButton(lobby, 'show_impostor', 'Pokaż impostora', discord.ButtonStyle.secondary))
+            container.add_item(discord.ui.ActionRow(*controls))
+            container.add_item(discord.ui.TextDisplay('-# Zagraj ponownie: tylko twórca • ten sam skład i ustawienia'))
         if lobby.associations and lobby.order:
             container.add_item(discord.ui.Separator())
             container.add_item(discord.ui.TextDisplay(
