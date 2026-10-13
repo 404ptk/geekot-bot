@@ -1,222 +1,290 @@
+"""Shared game catalogue managed through a Components V2 panel."""
+import json
+import logging
+import os
+import uuid
+from pathlib import Path
+
 import discord
 from discord import app_commands
-import json
-import os
-from typing import List
 from startup_logger import record_startup_step
 
 GAMES_FILE = "txt/gry.json"
-
 GUILD_ID = 551503797067710504
+PAGE_SIZE = 5
+logger = logging.getLogger(__name__)
+MENTIONS = discord.AllowedMentions.none()
 
-def load_games(startup_label=None):
-    if os.path.exists(GAMES_FILE):
-        with open(GAMES_FILE, "r", encoding="utf-8") as f:
-            games = json.load(f)
-        if startup_label:
-            record_startup_step(startup_label, True, GAMES_FILE)
-        return games
-    if startup_label:
-        record_startup_step(startup_label, False, f"{GAMES_FILE} not found")
-    return []
 
 def save_games(games):
-    with open(GAMES_FILE, "w", encoding="utf-8") as f:
-        json.dump(games, f, indent=4, ensure_ascii=False)
+    path = Path(GAMES_FILE)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(".tmp")
+    temporary.write_text(json.dumps(games, indent=4, ensure_ascii=False), encoding="utf-8")
+    temporary.replace(path)
 
-# Autocomplete function for game names
-async def games_autocomplete(
-    interaction: discord.Interaction,
-    current: str,
-) -> List[app_commands.Choice[str]]:
-    games_data = load_games()
-    choices = []
-    
-    for i, game in enumerate(games_data, start=1):
-        name = game["name"]
-        # Add game number and name for easy identification
-        display_name = f"{i}. {name}"
-        
-        # Filter based on user's current input
-        if current.lower() in name.lower() or (current.isdigit() and int(current) == i):
-            choices.append(app_commands.Choice(name=display_name, value=str(i)))
-    
-    return choices[:25]  # Discord limits to 25 choices
+
+def load_games(startup_label=None):
+    if not os.path.exists(GAMES_FILE):
+        if startup_label:
+            record_startup_step(startup_label, False, f"{GAMES_FILE} not found")
+        return []
+    with open(GAMES_FILE, encoding="utf-8") as stream:
+        games = json.load(stream)
+    # Persist identifiers once, preserving names, descriptions and existing metadata.
+    changed = False
+    seen = set()
+    for game in games:
+        if not isinstance(game.get("id"), str) or not game["id"] or game["id"] in seen:
+            game["id"] = uuid.uuid4().hex
+            changed = True
+        seen.add(game["id"])
+    if changed:
+        save_games(games)
+    if startup_label:
+        record_startup_step(startup_label, True, GAMES_FILE)
+    return games
+
+
+def escaped(text, limit):
+    return discord.utils.escape_markdown(discord.utils.escape_mentions(str(text)))[:limit]
+
+
+async def reply(interaction, text):
+    if interaction.response.is_done():
+        await interaction.followup.send(text, ephemeral=True, allowed_mentions=MENTIONS)
+    else:
+        await interaction.response.send_message(text, ephemeral=True, allowed_mentions=MENTIONS)
+
+
+class GameButton(discord.ui.Button):
+    def __init__(self, action, label, style=discord.ButtonStyle.secondary, disabled=False):
+        super().__init__(label=label, style=style, disabled=disabled)
+        self.action = action
+
+    async def callback(self, interaction):
+        await self.view.action(interaction, self.action)
+
+
+class GameSelect(discord.ui.Select):
+    def __init__(self, games, selected):
+        super().__init__(placeholder="Wybierz grę, aby zobaczyć opis i ją edytować", options=[
+            discord.SelectOption(label=game["name"][:100], value=game["id"],
+                                 default=game["id"] == selected)
+            for game in games
+        ])
+
+    async def callback(self, interaction):
+        self.view.selected_id = self.values[0]
+        self.view.detail_page = 0
+        self.view.confirm_delete = False
+        await self.view.refresh(interaction)
+
+
+class GameModal(discord.ui.Modal):
+    def __init__(self, panel, game=None):
+        super().__init__(title="Edytuj grę" if game else "Dodaj grę", timeout=600)
+        self.panel = panel
+        self.original = dict(game) if game else None
+        self.name_input = discord.ui.TextInput(
+            label="Nazwa gry", min_length=1, max_length=100,
+            default=game["name"][:100] if game else None)
+        self.description_input = discord.ui.TextInput(
+            label="Opis (opcjonalny)", style=discord.TextStyle.paragraph,
+            required=False, max_length=4000,
+            default=game.get("description", "")[:4000] if game else None)
+        self.add_item(self.name_input)
+        self.add_item(self.description_input)
+
+    async def on_submit(self, interaction):
+        if interaction.user.id != self.panel.owner_id:
+            await reply(interaction, "Otwórz własny panel przez /gry.")
+            return
+        if self.panel.is_finished():
+            await reply(interaction, "Panel wygasł. Otwórz nowy przez /gry.")
+            return
+        name = self.name_input.value.strip()
+        if not name:
+            await reply(interaction, "Podaj nazwę gry.")
+            return
+        description = self.description_input.value.strip()
+        # Keep legacy text beyond the modal limit when that field is unchanged.
+        if self.original:
+            old_name = self.original["name"]
+            old_description = self.original.get("description", "")
+            if len(old_name) > 100 and name == old_name[:100].strip():
+                name = old_name
+            if len(old_description) > 4000 and description == old_description[:4000].strip():
+                description = old_description
+        games = load_games()
+        if self.original:
+            game = next((item for item in games if item["id"] == self.original["id"]), None)
+            if game != self.original:
+                await reply(interaction, "Ta gra została zmieniona lub usunięta. Odśwież panel i otwórz edycję ponownie.")
+                return
+            game.update(name=name, description=description)
+        else:
+            game = {"id": uuid.uuid4().hex, "name": name,
+                    "description": description}
+            games.append(game)
+        save_games(games)
+        self.panel.selected_id = game["id"]
+        self.panel.detail_page = 0
+        self.panel.page = games.index(game) // PAGE_SIZE
+        self.panel.confirm_delete = False
+        await self.panel.refresh(interaction)
+
+    async def on_error(self, interaction, error):
+        logger.error("Game form failed", exc_info=(type(error), error, error.__traceback__))
+        await reply(interaction, "Nie udało się zapisać gry. Spróbuj ponownie.")
+
+
+class GamesPanel(discord.ui.LayoutView):
+    def __init__(self, owner_id):
+        super().__init__(timeout=600)
+        self.owner_id = owner_id
+        self.page = 0
+        self.selected_id = None
+        self.detail_page = 0
+        self.confirm_delete = False
+        self.delete_snapshot = None
+        self.message = None
+        self.render()
+
+    def render(self):
+        games = load_games()
+        pages = max(1, (len(games) + PAGE_SIZE - 1) // PAGE_SIZE)
+        self.page = max(0, min(self.page, pages - 1))
+        visible = games[self.page * PAGE_SIZE:(self.page + 1) * PAGE_SIZE]
+        selected = next((game for game in visible if game["id"] == self.selected_id), None)
+        if selected is None:
+            self.selected_id = None
+            self.confirm_delete = False
+        self.clear_items()
+        container = discord.ui.Container(accent_color=0x5865F2)
+        container.add_item(discord.ui.TextDisplay(
+            f"# 🎮 Gry\nLista gier, w które chcemy zagrać. **Łącznie: {len(games)}**"))
+        container.add_item(discord.ui.Separator())
+        if not visible:
+            container.add_item(discord.ui.TextDisplay("Brak gier na liście. Dodaj pierwszą przyciskiem poniżej."))
+        for index, game in enumerate(visible, self.page * PAGE_SIZE + 1):
+            description = game.get("description") or "Brak opisu"
+            preview = escaped(description, 250)
+            if len(description) > 250:
+                preview += "…"
+            text = f"### {index}. {escaped(game['name'], 100)}"
+            if selected is None:
+                text += f"\n{preview}"
+            container.add_item(discord.ui.TextDisplay(text))
+        if visible:
+            container.add_item(discord.ui.ActionRow(GameSelect(visible, self.selected_id)))
+        if selected:
+            container.add_item(discord.ui.Separator())
+            description = selected.get("description") or "Brak opisu"
+            detail_text = discord.utils.escape_markdown(discord.utils.escape_mentions(description))
+            detail_pages = [detail_text[i:i + 1800] for i in range(0, len(detail_text), 1800)]
+            self.detail_page = max(0, min(self.detail_page, len(detail_pages) - 1))
+            detail = detail_pages[self.detail_page]
+            container.add_item(discord.ui.TextDisplay(
+                f"### Wybrano: {escaped(selected['name'], 100)}\n{detail}"))
+            if len(detail_pages) > 1:
+                container.add_item(discord.ui.TextDisplay(
+                    f"-# Opis: strona {self.detail_page + 1} z {len(detail_pages)}"))
+                container.add_item(discord.ui.ActionRow(
+                    GameButton("detail_previous", "Poprzednia część opisu", disabled=self.detail_page == 0),
+                    GameButton("detail_next", "Następna część opisu",
+                               disabled=self.detail_page == len(detail_pages) - 1)))
+        if self.confirm_delete and selected:
+            container.add_item(discord.ui.TextDisplay(
+                f"**Usunąć grę „{escaped(selected['name'], 100)}”?**"))
+            container.add_item(discord.ui.ActionRow(
+                GameButton("delete_confirm", "Usuń grę", discord.ButtonStyle.danger),
+                GameButton("delete_cancel", "Anuluj")))
+        else:
+            container.add_item(discord.ui.ActionRow(
+                GameButton("add", "Dodaj grę", discord.ButtonStyle.success),
+                GameButton("edit", "Edytuj nazwę / opis", discord.ButtonStyle.primary, selected is None),
+                GameButton("delete", "Usuń", discord.ButtonStyle.danger, selected is None),
+                GameButton("refresh", "Odśwież")))
+        container.add_item(discord.ui.TextDisplay(f"-# Strona {self.page + 1} z {pages}"))
+        container.add_item(discord.ui.ActionRow(
+            GameButton("previous", "Poprzednia", disabled=self.page == 0),
+            GameButton("next", "Następna", disabled=self.page == pages - 1)))
+        self.footer = discord.ui.TextDisplay(
+            "-# Sterowanie: autor panelu • każdy może otworzyć własny przez /gry • wygasa po 10 minutach bezczynności")
+        container.add_item(self.footer)
+        self.add_item(container)
+
+    async def refresh(self, interaction):
+        self.render()
+        await interaction.response.edit_message(view=self, allowed_mentions=MENTIONS)
+
+    async def action(self, interaction, action):
+        games = load_games()
+        selected = next((game for game in games if game["id"] == self.selected_id), None)
+        if action == "add":
+            await interaction.response.send_modal(GameModal(self))
+            return
+        if action in ("edit", "delete", "delete_confirm") and selected is None:
+            await reply(interaction, "Gra została usunięta. Odśwież panel.")
+            return
+        if action == "edit":
+            await interaction.response.send_modal(GameModal(self, selected))
+            return
+        if action == "delete":
+            self.confirm_delete = True
+            self.delete_snapshot = dict(selected)
+        elif action == "delete_confirm":
+            if not self.confirm_delete or selected != self.delete_snapshot:
+                self.confirm_delete = False
+                await reply(interaction, "Gra została zmieniona. Odśwież panel i wybierz ją ponownie.")
+                return
+            games.remove(selected)
+            save_games(games)
+            self.selected_id = None
+            self.confirm_delete = False
+        elif action == "previous":
+            self.page -= 1
+            self.selected_id = None
+            self.confirm_delete = False
+        elif action == "next":
+            self.page += 1
+            self.selected_id = None
+            self.confirm_delete = False
+        elif action == "detail_previous":
+            self.detail_page -= 1
+        elif action == "detail_next":
+            self.detail_page += 1
+        elif action in ("refresh", "delete_cancel"):
+            self.confirm_delete = False
+        await self.refresh(interaction)
+
+    async def interaction_check(self, interaction):
+        if interaction.user.id == self.owner_id:
+            return True
+        await reply(interaction, "Otwórz własny panel przez /gry.")
+        return False
+
+    async def on_timeout(self):
+        for item in self.walk_children():
+            if isinstance(item, (discord.ui.Select, discord.ui.Button)):
+                item.disabled = True
+        self.footer.content = "-# Panel wygasł. Otwórz nowy przez /gry."
+        if self.message:
+            try:
+                await self.message.edit(view=self, allowed_mentions=MENTIONS)
+            except discord.HTTPException:
+                pass
+
+    async def on_error(self, interaction, error, item):
+        logger.error("Games panel failed", exc_info=(type(error), error, error.__traceback__))
+        await reply(interaction, "Nie udało się zaktualizować panelu. Spróbuj ponownie.")
+
 
 async def setup_games_commands(client: discord.Client, tree: app_commands.CommandTree):
-    """Rejestruje slash commands dla gier"""
-    
-    # Tworzenie grupy komend dla gier
-    gry_group = app_commands.Group(name="gry", description="Komendy związane z grami")
-    
-    @gry_group.command(name="lista", description="Wyświetla listę wszystkich gier")
-    async def gry_lista(interaction: discord.Interaction):
-        games_data = load_games()
-        if not games_data:
-            await interaction.response.send_message(embed=discord.Embed(
-                title="Lista gier",
-                description="Brak gier na liście.",
-                color=discord.Color.blue()
-            ))
-        else:
-            embed = discord.Embed(
-                title="Lista gier",
-                description="Poniżej znajduje się lista gier, w które chcemy zagrać:",
-                color=discord.Color.blue()
-            )
-            for i, g in enumerate(games_data, start=1):
-                name = g["name"]
-                desc = g["description"] if g["description"] else "Brak opisu"
-                embed.add_field(
-                    name=f"{i}. {name}",
-                    value=desc,
-                    inline=False
-                )
-            await interaction.response.send_message(embed=embed)
-
-    @gry_group.command(name="dodaj", description="Dodaje nową grę do listy")
-    async def gry_dodaj(interaction: discord.Interaction, nazwa_gry: str):
-        games_data = load_games()
-        games_data.append({"name": nazwa_gry, "description": ""})
-        save_games(games_data)
-        await interaction.response.send_message(embed=discord.Embed(
-            title="Dodano grę",
-            description=f"Pomyślnie dodano **{nazwa_gry}** do listy gier.",
-            color=discord.Color.blue()
-        ))
-
-    @gry_group.command(name="dodajopis", description="Dodaje opis do istniejącej gry")
-    @app_commands.autocomplete(wybrana_gra=games_autocomplete)
-    async def gry_dodajopis(interaction: discord.Interaction, wybrana_gra: str, opis: str):
-        games_data = load_games()
-        try:
-            # Extract number from selection (format: "1. Game Name")
-            index = int(wybrana_gra) - 1
-            
-            if 0 <= index < len(games_data):
-                games_data[index]["description"] = opis
-                save_games(games_data)
-                await interaction.response.send_message(embed=discord.Embed(
-                    title="Dodano opis",
-                    description=f"Gra: **{games_data[index]['name']}**\nOpis: {opis}",
-                    color=discord.Color.blue()
-                ))
-            else:
-                await interaction.response.send_message(embed=discord.Embed(
-                    title="Błąd",
-                    description="Nieprawidłowy wybór gry!",
-                    color=discord.Color.red()
-                ))
-        except (ValueError, IndexError):
-            await interaction.response.send_message(embed=discord.Embed(
-                title="Błąd",
-                description="Nieprawidłowy wybór gry!",
-                color=discord.Color.red()
-            ))
-
-    @gry_group.command(name="edytujopis", description="Edytuje opis istniejącej gry")
-    @app_commands.autocomplete(wybrana_gra=games_autocomplete)
-    async def gry_edytujopis(interaction: discord.Interaction, wybrana_gra: str, nowy_opis: str):
-        games_data = load_games()
-        try:
-            # Extract number from selection (format: "1. Game Name")
-            index = int(wybrana_gra) - 1
-            
-            if 0 <= index < len(games_data):
-                games_data[index]["description"] = nowy_opis
-                save_games(games_data)
-                await interaction.response.send_message(embed=discord.Embed(
-                    title="Edytowano opis gry",
-                    description=f"Gra: **{games_data[index]['name']}**\nNowy opis: {nowy_opis}",
-                    color=discord.Color.blue()
-                ))
-            else:
-                await interaction.response.send_message(embed=discord.Embed(
-                    title="Błąd",
-                    description="Nieprawidłowy wybór gry!",
-                    color=discord.Color.red()
-                ))
-        except (ValueError, IndexError):
-            await interaction.response.send_message(embed=discord.Embed(
-                title="Błąd",
-                description="Nieprawidłowy wybór gry!",
-                color=discord.Color.red()
-            ))
-
-    @gry_group.command(name="usun", description="Usuwa grę z listy")
-    @app_commands.autocomplete(wybrana_gra=games_autocomplete)
-    async def gry_usun(interaction: discord.Interaction, wybrana_gra: str):
-        games_data = load_games()
-        try:
-            # Extract number from selection (format: "1. Game Name")
-            index = int(wybrana_gra) - 1
-            
-            if 0 <= index < len(games_data):
-                removed_game = games_data.pop(index)
-                save_games(games_data)
-                await interaction.response.send_message(embed=discord.Embed(
-                    title="Usunięto grę",
-                    description=f"Z listy usunięto: **{removed_game['name']}**",
-                    color=discord.Color.orange()
-                ))
-            else:
-                await interaction.response.send_message(embed=discord.Embed(
-                    title="Błąd",
-                    description="Nieprawidłowy wybór gry!",
-                    color=discord.Color.red()
-                ))
-        except (ValueError, IndexError):
-            await interaction.response.send_message(embed=discord.Embed(
-                title="Błąd",
-                description="Nieprawidłowy wybór gry!",
-                color=discord.Color.red()
-            ))
-            
-    @gry_group.command(name="pomoc", description="Wyświetla pomoc dla komend związanych z grami")
-    async def gry_pomoc(interaction: discord.Interaction):
-        embed = discord.Embed(
-            title="Pomoc - Komendy związane z grami",
-            description="Poniżej znajduje się lista dostępnych komend w kategorii gier:",
-            color=discord.Color.blue()
-        )
-        
-        embed.add_field(
-            name="/gry lista",
-            value="Wyświetla listę wszystkich zapisanych gier wraz z ich opisami.",
-            inline=False
-        )
-        
-        embed.add_field(
-            name="/gry dodaj [nazwa_gry]",
-            value="Dodaje nową grę o podanej nazwie do listy gier.",
-            inline=False
-        )
-        
-        embed.add_field(
-            name="/gry dodajopis [wybrana_gra] [opis]",
-            value="Dodaje opis do istniejącej gry. Można wybrać grę z listy podpowiedzi.",
-            inline=False
-        )
-        
-        embed.add_field(
-            name="/gry edytujopis [wybrana_gra] [nowy_opis]",
-            value="Edytuje opis istniejącej gry. Można wybrać grę z listy podpowiedzi.",
-            inline=False
-        )
-        
-        embed.add_field(
-            name="/gry usun [wybrana_gra]",
-            value="Usuwa grę z listy. Można wybrać grę z listy podpowiedzi.",
-            inline=False
-        )
-        
-        embed.add_field(
-            name="/gry pomoc",
-            value="Wyświetla tę wiadomość z pomocą dotyczącą komend gier.",
-            inline=False
-        )
-        
-        await interaction.response.send_message(embed=embed)
-    
-    # Rejestracja grupy komend tylko dla konkretnego serwera
-    tree.add_command(gry_group, guild=discord.Object(id=GUILD_ID))
+    @tree.command(name="gry", description="Panel listy gier: przeglądaj, dodawaj, edytuj i usuwaj",
+                  guild=discord.Object(id=GUILD_ID))
+    async def gry(interaction: discord.Interaction):
+        panel = GamesPanel(interaction.user.id)
+        await interaction.response.send_message(view=panel, allowed_mentions=MENTIONS)
+        panel.message = await interaction.original_response()
