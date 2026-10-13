@@ -199,7 +199,7 @@ class GamesPanel(discord.ui.LayoutView):
             GameButton("previous", "Poprzednia", disabled=self.page == 0),
             GameButton("next", "Następna", disabled=self.page == pages - 1)))
         self.footer = discord.ui.TextDisplay(
-            "-# Sterowanie: autor panelu • każdy może otworzyć własny przez /gry • wygasa po 10 minutach bezczynności")
+            "-# Panel wygasa po 10 minutach bezczynności.")
         container.add_item(self.footer)
         self.add_item(container)
 

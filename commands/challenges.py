@@ -1,190 +1,255 @@
+"""Shared CS2 challenges managed through a Components V2 panel."""
+import json
+import logging
+import random
+import uuid
+from pathlib import Path
+
 import discord
 from discord import app_commands
-import os
-import random
-from typing import List
 from startup_logger import record_startup_step
 
 GUILD_ID = 551503797067710504
-
 CHALLENGES_FILE = "txt/challenges.txt"
-challenges = []
+PAGE_SIZE = 5
+MENTIONS = discord.AllowedMentions.none()
+logger = logging.getLogger(__name__)
+DEFAULT_CHALLENGES = [
+    "Zagraj rundę tylko z Deagle",
+    "Wygraj mecz bez kupowania granatów",
+    "Użyj tylko noża w jednej rundzie",
+    "Zabij 3 przeciwników z AWP w jednym meczu",
+]
 
-def save_challenges():
-    with open(CHALLENGES_FILE, "w", encoding="utf-8") as file:
-        for challenge in challenges:
-            file.write(challenge + "\n")
+
+def save_challenges(records):
+    path = Path(CHALLENGES_FILE).with_suffix(".json")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(".tmp")
+    temporary.write_text(json.dumps(records, ensure_ascii=False, indent=4), encoding="utf-8")
+    temporary.replace(path)
+
 
 def load_challenges(startup_label=None):
-    challenges.clear()
-    if os.path.exists(CHALLENGES_FILE):
-        with open(CHALLENGES_FILE, "r", encoding="utf-8") as file:
-            for line in file:
-                challenges.append(line.strip())
-        if startup_label:
-            record_startup_step(startup_label, True, CHALLENGES_FILE)
-        else:
-            print("Loaded file: txt/challenges.txt")
+    legacy_path = Path(CHALLENGES_FILE)
+    path = legacy_path.with_suffix(".json")
+    if path.exists():
+        records = json.loads(path.read_text(encoding="utf-8"))
     else:
-        default_challenges = [
-            "Zagraj rundę tylko z Deagle",
-            "Wygraj mecz bez kupowania granatów",
-            "Użyj tylko noża w jednej rundzie",
-            "Zabij 3 przeciwników z AWP w jednym meczu"
-        ]
-        if startup_label:
-            record_startup_step(startup_label, False, f"{CHALLENGES_FILE} not found; creating a new file")
+        texts = legacy_path.read_text(encoding="utf-8").splitlines() if legacy_path.exists() else DEFAULT_CHALLENGES
+        records = [{"id": uuid.uuid4().hex, "text": text.strip()} for text in texts if text.strip()]
+        # Keep the original text file as a backup; subsequent edits use JSON.
+        save_challenges(records)
+    if startup_label:
+        record_startup_step(startup_label, True, str(path))
+    return records
+
+
+def escaped(value):
+    return discord.utils.escape_markdown(discord.utils.escape_mentions(value))
+
+
+async def reply(interaction, text):
+    if interaction.response.is_done():
+        await interaction.followup.send(text, ephemeral=True, allowed_mentions=MENTIONS)
+    else:
+        await interaction.response.send_message(text, ephemeral=True, allowed_mentions=MENTIONS)
+
+
+class ChallengeButton(discord.ui.Button):
+    def __init__(self, action, label, style=discord.ButtonStyle.secondary, disabled=False):
+        super().__init__(label=label, style=style, disabled=disabled)
+        self.action = action
+
+    async def callback(self, interaction):
+        await self.view.action(interaction, self.action)
+
+
+class ChallengeSelect(discord.ui.Select):
+    def __init__(self, records, selected_id):
+        super().__init__(placeholder="Wybierz wyzwanie, aby zobaczyć całą treść", options=[
+            discord.SelectOption(label=record["text"].replace("\n", " ")[:100], value=record["id"],
+                                 default=record["id"] == selected_id)
+            for record in records])
+
+    async def callback(self, interaction):
+        self.view.selected_id = self.values[0]
+        self.view.detail_page = 0
+        self.view.drawn = False
+        await self.view.refresh(interaction)
+
+
+class ChallengeModal(discord.ui.Modal):
+    def __init__(self, panel, record=None):
+        super().__init__(title="Edytuj wyzwanie" if record else "Dodaj wyzwanie", timeout=600)
+        self.panel = panel
+        self.original = dict(record) if record else None
+        self.text_input = discord.ui.TextInput(
+            label="Treść wyzwania", style=discord.TextStyle.paragraph, min_length=1, max_length=4000,
+            default=record["text"][:4000] if record else None)
+        self.add_item(self.text_input)
+
+    async def on_submit(self, interaction):
+        if interaction.user.id != self.panel.owner_id:
+            await reply(interaction, "Otwórz własny panel przez /wyzwania.")
+            return
+        if self.panel.is_finished():
+            await reply(interaction, "Panel wygasł. Otwórz nowy przez /wyzwania.")
+            return
+        text = self.text_input.value.strip()
+        if not text:
+            await reply(interaction, "Podaj treść wyzwania.")
+            return
+        if self.original and len(self.original["text"]) > 4000 and text == self.original["text"][:4000].strip():
+            text = self.original["text"]
+        records = load_challenges()
+        if self.original:
+            record = next((item for item in records if item["id"] == self.original["id"]), None)
+            if record != self.original:
+                await reply(interaction, "Wyzwanie zostało zmienione lub usunięte. Odśwież panel i otwórz edycję ponownie.")
+                return
+            record["text"] = text
         else:
-            print("Error loading txt/challenges.txt - creating a new file.")
-        challenges.extend(default_challenges)
-        save_challenges()
+            record = {"id": uuid.uuid4().hex, "text": text}
+            records.append(record)
+        save_challenges(records)
+        self.panel.selected_id = record["id"]
+        self.panel.page = records.index(record) // PAGE_SIZE
+        self.panel.detail_page = 0
+        self.panel.drawn = False
+        await self.panel.refresh(interaction)
 
-# Załaduj przy starcie
-load_challenges(startup_label="Challenges list")
+    async def on_error(self, interaction, error):
+        logger.error("Challenge form failed", exc_info=(type(error), error, error.__traceback__))
+        await reply(interaction, "Nie udało się zapisać wyzwania. Spróbuj ponownie.")
 
-# Autocomplete function for challenges
-async def challenges_autocomplete(
-    interaction: discord.Interaction,
-    current: str,
-) -> List[app_commands.Choice[str]]:
-    choices = []
-    
-    for i, challenge in enumerate(challenges, start=1):
-        # Skróć wyzwanie, jeśli jest za długie dla wyświetlania
-        display_text = challenge[:50] + "..." if len(challenge) > 50 else challenge
-        display_name = f"{i}. {display_text}"
-        
-        # Filtruj na podstawie wpisanego tekstu
-        if (current.lower() in challenge.lower() or 
-            (current.isdigit() and int(current) == i)):
-            choices.append(app_commands.Choice(name=display_name, value=str(i)))
-    
-    return choices[:25]  # Discord limits to 25 choices
+
+class ChallengesPanel(discord.ui.LayoutView):
+    def __init__(self, owner_id):
+        super().__init__(timeout=600)
+        self.owner_id = owner_id
+        self.page = 0
+        self.detail_page = 0
+        self.selected_id = None
+        self.drawn = False
+        self.message = None
+        self.render()
+
+    def render(self):
+        records = load_challenges()
+        pages = max(1, (len(records) + PAGE_SIZE - 1) // PAGE_SIZE)
+        self.page = max(0, min(self.page, pages - 1))
+        visible = records[self.page * PAGE_SIZE:(self.page + 1) * PAGE_SIZE]
+        selected = next((item for item in visible if item["id"] == self.selected_id), None)
+        if selected is None:
+            self.selected_id = None
+            self.drawn = False
+        self.clear_items()
+        container = discord.ui.Container(accent_color=0xE67E22)
+        container.add_item(discord.ui.TextDisplay(
+            f"# 🎯 Wyzwania CS2\nWspólna lista wyzwań. **Łącznie: {len(records)}**"))
+        container.add_item(discord.ui.Separator())
+        if not visible:
+            container.add_item(discord.ui.TextDisplay("Brak wyzwań. Dodaj pierwsze przyciskiem poniżej."))
+        for index, record in enumerate(visible, self.page * PAGE_SIZE + 1):
+            preview = escaped(record["text"])
+            preview = preview[:200] + "…" if len(preview) > 200 else preview
+            container.add_item(discord.ui.TextDisplay(f"**{index}.** {preview}"))
+        if visible:
+            container.add_item(discord.ui.ActionRow(ChallengeSelect(visible, self.selected_id)))
+        if selected:
+            container.add_item(discord.ui.Separator())
+            container.add_item(discord.ui.TextDisplay(
+                "### 🎲 Wylosowane wyzwanie" if self.drawn else "### Wybrane wyzwanie"))
+            text = escaped(selected["text"])
+            chunks = [text[i:i + 1800] for i in range(0, len(text), 1800)]
+            self.detail_page = max(0, min(self.detail_page, len(chunks) - 1))
+            container.add_item(discord.ui.TextDisplay(chunks[self.detail_page]))
+            if len(chunks) > 1:
+                container.add_item(discord.ui.TextDisplay(
+                    f"-# Treść: strona {self.detail_page + 1} z {len(chunks)}"))
+                container.add_item(discord.ui.ActionRow(
+                    ChallengeButton("detail_previous", "Poprzednia część", disabled=self.detail_page == 0),
+                    ChallengeButton("detail_next", "Następna część", disabled=self.detail_page == len(chunks) - 1)))
+        container.add_item(discord.ui.ActionRow(
+            ChallengeButton("draw", "Losuj", discord.ButtonStyle.primary, not records),
+            ChallengeButton("add", "Dodaj", discord.ButtonStyle.success),
+            ChallengeButton("edit", "Edytuj", disabled=selected is None),
+            ChallengeButton("delete", "Usuń", discord.ButtonStyle.danger, selected is None),
+            ChallengeButton("refresh", "Odśwież")))
+        container.add_item(discord.ui.TextDisplay(f"-# Strona {self.page + 1} z {pages}"))
+        container.add_item(discord.ui.ActionRow(
+            ChallengeButton("previous", "Poprzednia", disabled=self.page == 0),
+            ChallengeButton("next", "Następna", disabled=self.page == pages - 1)))
+        self.footer = discord.ui.TextDisplay("-# Panel wygasa po 10 minutach bezczynności.")
+        container.add_item(self.footer)
+        self.add_item(container)
+
+    async def refresh(self, interaction):
+        self.render()
+        await interaction.response.edit_message(view=self, allowed_mentions=MENTIONS)
+
+    async def action(self, interaction, action):
+        records = load_challenges()
+        selected = next((item for item in records if item["id"] == self.selected_id), None)
+        if action == "add":
+            await interaction.response.send_modal(ChallengeModal(self))
+            return
+        if action in ("edit", "delete") and selected is None:
+            await reply(interaction, "Wyzwanie zostało usunięte. Odśwież panel.")
+            return
+        if action == "edit":
+            await interaction.response.send_modal(ChallengeModal(self, selected))
+            return
+        if action == "delete":
+            records.remove(selected)
+            save_challenges(records)
+            self.selected_id = None
+        elif action == "draw":
+            if not records:
+                await reply(interaction, "Brak wyzwań do wylosowania.")
+                return
+            record = random.choice(records)
+            self.selected_id = record["id"]
+            self.page = records.index(record) // PAGE_SIZE
+            self.detail_page = 0
+            self.drawn = True
+        elif action in ("previous", "next"):
+            self.page += 1 if action == "next" else -1
+            self.selected_id = None
+            self.drawn = False
+        elif action in ("detail_previous", "detail_next"):
+            self.detail_page += 1 if action == "detail_next" else -1
+        await self.refresh(interaction)
+
+    async def interaction_check(self, interaction):
+        if interaction.user.id == self.owner_id:
+            return True
+        await reply(interaction, "Otwórz własny panel przez /wyzwania.")
+        return False
+
+    async def on_timeout(self):
+        for item in self.walk_children():
+            if isinstance(item, (discord.ui.Button, discord.ui.Select)):
+                item.disabled = True
+        self.footer.content = "-# Panel wygasł. Otwórz nowy przez /wyzwania."
+        if self.message:
+            try:
+                await self.message.edit(view=self, allowed_mentions=MENTIONS)
+            except discord.HTTPException:
+                pass
+
+    async def on_error(self, interaction, error, item):
+        logger.error("Challenges panel failed", exc_info=(type(error), error, error.__traceback__))
+        await reply(interaction, "Nie udało się zaktualizować panelu. Spróbuj ponownie.")
+
 
 async def setup_challenges_commands(client: discord.Client, tree: app_commands.CommandTree, guild_id: int = None):
-    guild = discord.Object(id=guild_id) if guild_id else discord.Object(id=GUILD_ID)
-    
-    # Tworzenie grupy komend dla wyzwań
-    wyzwania_group = app_commands.Group(name="wyzwania", description="Komendy związane z wyzwaniami CS2")
-    
-    @wyzwania_group.command(name="losuj", description="Losuje wyzwanie CS2")
-    async def wyzwania_losuj(interaction: discord.Interaction):
-        if not challenges:
-            embed = discord.Embed(
-                title="📋 Lista wyzwań CS2",
-                description="Brak zapisanych wyzwań. Dodaj jedno za pomocą `/wyzwania dodaj`!",
-                color=discord.Color.red()
-            )
-            embed.set_footer(text="Stwórz swoje wyzwanie!")
-            await interaction.response.send_message(embed=embed)
-        else:
-            challenge = random.choice(challenges)
-            embed = discord.Embed(
-                title="🎯 Twoje wyzwanie CS2",
-                description=f"**{challenge}**",
-                color=discord.Color.green()
-            )
-            embed.set_footer(text="Dodaj własne wyzwanie za pomocą `/wyzwania dodaj`\nPowodzenia!")
-            await interaction.response.send_message(embed=embed)
+    guild = discord.Object(id=guild_id if guild_id is not None else GUILD_ID)
+    load_challenges(startup_label="Challenges list")
 
-    @wyzwania_group.command(name="dodaj", description="Dodaje nowe wyzwanie do listy")
-    @app_commands.describe(tresc="Treść nowego wyzwania")
-    async def wyzwania_dodaj(interaction: discord.Interaction, tresc: str):
-        new_challenge = tresc.strip()
-        challenges.append(new_challenge)
-        save_challenges()
-        embed = discord.Embed(
-            title="✅ Nowe wyzwanie dodane!",
-            description=f"Dodałeś: **{new_challenge}**",
-            color=discord.Color.green()
-        )
-        embed.set_footer(text="Spróbuj je wylosować za pomocą `/wyzwania losuj`")
-        print(f"Added challenge '{new_challenge}' to list.")
-        await interaction.response.send_message(embed=embed)
-
-    @wyzwania_group.command(name="lista", description="Wyświetla listę wszystkich wyzwań CS2")
-    async def wyzwania_lista(interaction: discord.Interaction):
-        if not challenges:
-            await interaction.response.send_message("Brak zapisanych wyzwań. Dodaj jedno za pomocą `/wyzwania dodaj`!")
-        else:
-            challenges_list = "\n".join(f"{i + 1}. {challenge}" for i, challenge in enumerate(challenges))
-            embed = discord.Embed(
-                title="📋 Lista wyzwań CS2",
-                description=f"Oto dostępne wyzwania:\n{challenges_list}",
-                color=discord.Color.orange()
-            )
-            embed.set_footer(text="Użyj `/wyzwania losuj`, aby wylosować jedno z nich!")
-            await interaction.response.send_message(embed=embed)
-
-    @wyzwania_group.command(name="usun", description="Usuwa wyzwanie z listy")
-    @app_commands.autocomplete(wybrane_wyzwanie=challenges_autocomplete)
-    async def wyzwania_usun(interaction: discord.Interaction, wybrane_wyzwanie: str):
-        try:
-            # Extract number from selection (format: "1. Challenge text...")
-            index = int(wybrane_wyzwanie) - 1
-            
-            if 0 <= index < len(challenges):
-                removed_challenge = challenges.pop(index)
-                save_challenges()
-                embed = discord.Embed(
-                    title="✅ Wyzwanie usunięte",
-                    description=f"Usunięto: **{removed_challenge}**",
-                    color=discord.Color.green()
-                )
-                embed.set_footer(text="Sprawdź listę za pomocą `/wyzwania lista`")
-                await interaction.response.send_message(embed=embed)
-            else:
-                await interaction.response.send_message(embed=discord.Embed(
-                    title="⚠️ Błąd",
-                    description="Nieprawidłowy wybór wyzwania!",
-                    color=discord.Color.red()
-                ))
-        except (ValueError, IndexError):
-            await interaction.response.send_message(embed=discord.Embed(
-                title="⚠️ Błąd",
-                description="Nieprawidłowy wybór wyzwania!",
-                color=discord.Color.red()
-            ))
-            
-    @wyzwania_group.command(name="pomoc", description="Wyświetla pomoc dla komend związanych z wyzwaniami")
-    async def wyzwania_pomoc(interaction: discord.Interaction):
-        embed = discord.Embed(
-            title="Pomoc - Komendy związane z wyzwaniami CS2",
-            description="Poniżej znajduje się lista dostępnych komend w kategorii wyzwań:",
-            color=discord.Color.blue()
-        )
-        
-        embed.add_field(
-            name="/wyzwania lista",
-            value="Wyświetla listę wszystkich zapisanych wyzwań.",
-            inline=False
-        )
-        
-        embed.add_field(
-            name="/wyzwania dodaj [tresc]",
-            value="Dodaje nowe wyzwanie o podanej treści.",
-            inline=False
-        )
-        
-        embed.add_field(
-            name="/wyzwania usun [wybrane_wyzwanie]",
-            value="Usuwa wyzwanie z listy. Można wybrać wyzwanie z listy podpowiedzi.",
-            inline=False
-        )
-        
-        embed.add_field(
-            name="/wyzwania losuj",
-            value="Wyświetla losowe wyzwanie z listy.",
-            inline=False
-        )
-        
-        embed.add_field(
-            name="/wyzwania pomoc",
-            value="Wyświetla tę wiadomość z pomocą dotyczącą komend wyzwań.",
-            inline=False
-        )
-        
-        await interaction.response.send_message(embed=embed)
-    
-    # Rejestracja grupy komend
-    tree.add_command(wyzwania_group, guild=guild)
+    @tree.command(name="wyzwania", description="Panel wyzwań CS2: losuj, przeglądaj, dodawaj, edytuj i usuwaj", guild=guild)
+    async def wyzwania(interaction: discord.Interaction):
+        panel = ChallengesPanel(interaction.user.id)
+        await interaction.response.send_message(view=panel, allowed_mentions=MENTIONS)
+        panel.message = await interaction.original_response()
