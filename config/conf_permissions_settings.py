@@ -4,6 +4,7 @@ from pathlib import Path
 
 CONFIG_FILE = Path('txt/permissions_config.json')
 MODERATOR_COMMANDS = {
+    'resetdiscordranking': 'Resetowanie rankingu aktywności głosowej i wiadomości',
     'czysc': 'Usuwanie wiadomości z kanału',
     'otworz': 'Przywracanie kanału z archiwum',
     'zamknij': 'Przenoszenie kanału do archiwum i blokowanie pisania',

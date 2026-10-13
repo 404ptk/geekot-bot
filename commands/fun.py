@@ -11,9 +11,13 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from typing import Dict, Iterable, List, Optional, Tuple
 import io
+from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
+from config.conf_permissions_settings import require_moderator_command
 
 STATS_FILE = "txt/server_stats.json"
+RANKING_METADATA_KEY = "_ranking_metadata"
+DEFAULT_RANKING_RESET_AT = datetime(2026, 8, 30, tzinfo=ZoneInfo("Europe/Warsaw")).timestamp()
 IGNORED_CHANNEL_ID = 710042604720488520
 VOICE_EXEMPT_USER_ID = 391289282125365248
 VOICE_EXEMPT_PAIR_USER_ID = 1309165290868965507
@@ -174,7 +178,7 @@ def apply_voice_session(member: discord.Member, now: float) -> None:
 
     flush_voice_session(user_id, now)
 
-def load_stats():
+def load_stats_document():
     if not os.path.exists(STATS_FILE):
         return {}
     try:
@@ -184,12 +188,51 @@ def load_stats():
         logging.error(f"Failed to load stats: {e}")
         return {}
 
-def save_stats(stats):
+def load_stats():
+    document = load_stats_document()
+    return {uid: value for uid, value in document.items() if uid != RANKING_METADATA_KEY}
+
+
+def load_ranking_reset_at():
+    metadata = load_stats_document().get(RANKING_METADATA_KEY, {})
+    timestamp = metadata.get("last_reset_at") if isinstance(metadata, dict) else None
+    return timestamp if isinstance(timestamp, (int, float)) else DEFAULT_RANKING_RESET_AT
+
+
+def save_stats(stats, *, last_reset_at=None):
     try:
-        with open(STATS_FILE, "w", encoding="utf-8") as f:
-            json.dump(stats, f, indent=4)
+        document = dict(stats)
+        document[RANKING_METADATA_KEY] = {
+            "last_reset_at": load_ranking_reset_at() if last_reset_at is None else last_reset_at}
+        path = Path(STATS_FILE)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_suffix(".tmp")
+        temporary.write_text(json.dumps(document, indent=4), encoding="utf-8")
+        temporary.replace(path)
+        return True
     except Exception as e:
         logging.error(f"Failed to save stats: {e}")
+        return False
+
+
+def ranking_reset_label(timestamp=None):
+    timestamp = load_ranking_reset_at() if timestamp is None else timestamp
+    date = datetime.fromtimestamp(timestamp, ZoneInfo("Europe/Warsaw")).strftime("%d.%m.%Y")
+    return f"Ostatni reset rankingu: {date}"
+
+
+def reset_discord_ranking(guild, now):
+    with _stats_lock:
+        if not save_stats({}, last_reset_at=now):
+            return False
+        active_voice_sessions.clear()
+        if guild:
+            channels = list(guild.voice_channels) + list(getattr(guild, "stage_channels", []))
+            for channel in channels:
+                for member in channel.members:
+                    if not member.bot and is_voice_countable(member.voice, member.id):
+                        active_voice_sessions[member.id] = now
+        return True
 
 def update_message_count(user_id, timestamp=None):
     with _stats_lock:
@@ -486,6 +529,7 @@ def build_user_ranking_image(
     now: float,
     voice_active: bool,
     avatar_bytes: Optional[bytes] = None,
+    last_reset_at: Optional[float] = None,
 ) -> io.BytesIO:
     """Render an individual card with the ranking's palette and typography."""
     scale = 2
@@ -542,6 +586,8 @@ def build_user_ranking_image(
         draw.text(((x + 22) * scale, 440 * scale), last_value, font=small_font, fill=COLOR_TEXT)
     footer = f"Stan na {format_activity_timestamp(now)} · czas polski"
     draw.text((40 * scale, 508 * scale), footer, font=_load_font(12 * scale), fill=COLOR_MUTED)
+    draw.text((40 * scale, 530 * scale), ranking_reset_label(last_reset_at),
+              font=_load_font(10 * scale), fill=COLOR_MUTED)
     img = img.resize((width, height), Image.Resampling.LANCZOS)
     buffer = io.BytesIO()
     img.save(buffer, format="PNG")
@@ -554,6 +600,7 @@ def build_ranking_image(
     msg_data: List[Tuple[str, int]],
     guild: Optional[discord.Guild],
     current_user_id: str,
+    last_reset_at: Optional[float] = None,
 ) -> io.BytesIO:
     scale = 2
     pad = 28 * scale
@@ -578,7 +625,7 @@ def build_ranking_image(
     rows_h = RANKING_TOP_N * row_h + (RANKING_TOP_N - 1) * row_gap
     footer_gap = 12 * scale
     footer_block = footer_h + footer_gap if (has_voice_footer or has_msg_footer) else 0
-    height = pad + title_h + gap + header_h + rows_h + 16 * scale + footer_block + pad
+    height = pad + title_h + gap + header_h + rows_h + 16 * scale + footer_block + pad + 24 * scale
 
     img = Image.new("RGBA", (width, height), COLOR_BG)
     draw = ImageDraw.Draw(img)
@@ -760,6 +807,8 @@ def build_ranking_image(
                 anchor="rm",
             )
 
+    draw.text((pad, height - 24 * scale), ranking_reset_label(last_reset_at),
+              font=_load_font(10 * scale), fill=COLOR_MUTED)
     if scale > 1:
         img = img.resize((width // scale, height // scale), Image.Resampling.LANCZOS)
 
@@ -890,6 +939,27 @@ async def setup_fun_commands(client: discord.Client, tree: app_commands.CommandT
                     apply_voice_session(member, now)
 
     # --- Komendy ---
+    @tree.command(name="resetdiscordranking", description="Resetuje ranking aktywności głosowej i wiadomości", guild=guild_obj)
+    async def resetdiscordranking(interaction: discord.Interaction):
+        if not await require_moderator_command(interaction, "resetdiscordranking"):
+            return
+        await interaction.response.defer(ephemeral=True)
+        now = time.time()
+        guild = interaction.guild or client.get_guild(guild_id)
+        if not reset_discord_ranking(guild, now):
+            await interaction.followup.send("Nie udało się zapisać resetu rankingu. Spróbuj ponownie.", ephemeral=True)
+            return
+        await interaction.followup.send(
+            f"Ranking głosowy i wiadomości został wyzerowany. {ranking_reset_label(now)}.", ephemeral=True)
+
+    @resetdiscordranking.error
+    async def resetdiscordranking_error(interaction: discord.Interaction, error):
+        logging.error("Ranking reset failed", exc_info=(type(error), error, error.__traceback__))
+        if interaction.response.is_done():
+            await interaction.followup.send("Nie udało się zresetować rankingu.", ephemeral=True)
+        else:
+            await interaction.response.send_message("Nie udało się zresetować rankingu.", ephemeral=True)
+
     @tree.command(name="ranking", description="Wyświetla ranking aktywności serwera", guild=guild_obj)
     @app_commands.describe(nick="Użytkownik, którego kartę aktywności chcesz zobaczyć (opcjonalnie)")
     async def ranking(interaction: discord.Interaction, nick: Optional[discord.Member] = None):
@@ -906,6 +976,7 @@ async def setup_fun_commands(client: discord.Client, tree: app_commands.CommandT
             stats = load_stats()
             if reconcile_voice_sessions(guild, now, stats):
                 save_stats(stats)
+            last_reset_at = load_ranking_reset_at()
 
         all_user_ids = set(stats.keys())
         for uid in active_voice_sessions.keys():
@@ -948,7 +1019,7 @@ async def setup_fun_commands(client: discord.Client, tree: app_commands.CommandT
                 buffer = await asyncio.to_thread(
                     build_user_ranking_image, nick, voice_data, msg_data,
                     stats.get(str(nick.id), {}), now,
-                    nick.id in active_voice_sessions, avatar_bytes,
+                    nick.id in active_voice_sessions, avatar_bytes, last_reset_at,
                 )
                 await interaction.followup.send(
                     file=discord.File(fp=buffer, filename=f"ranking_{nick.id}.png"))
@@ -964,6 +1035,7 @@ async def setup_fun_commands(client: discord.Client, tree: app_commands.CommandT
                 msg_data,
                 guild,
                 str(interaction.user.id),
+                last_reset_at,
             )
             file = discord.File(fp=buffer, filename="ranking.png")
             await interaction.followup.send(file=file)

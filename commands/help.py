@@ -14,7 +14,7 @@ HELP_CATEGORIES = (
     ("masny", "📊 Masny", "Tabela, wymówki i spawn", {"masny", "resetmasny", "wymowki", "spawn"}),
     ("games", "🕹️ Gry i wyjazdy", "Impostor, lista gier, Minecraft i wakacje", {"impostor", "gry", "ile", "ilereset", "wakacje"}),
     ("community", "👥 Serwer i relacje", "Aktywność, ranking, avatary i relacje", {"aktywnosc", "ranking", "avatar", "relacje", "zgoda", "dodajrelacje"}),
-    ("admin", "⚙️ Moderacja i konfiguracja", "Kanały, ustawienia, oferty i komendy slash", {"config", "zamknij", "otworz", "czysc", "sync", "guildsync", "clearcmds", "clearglobalcmds", "slashlist", "gslashlist", "ofertyfiltry"}),
+    ("admin", "⚙️ Moderacja i konfiguracja", "Kanały, ustawienia, oferty i komendy slash", {"config", "zamknij", "otworz", "czysc", "sync", "guildsync", "clearcmds", "clearglobalcmds", "slashlist", "gslashlist", "ofertyfiltry", "resetdiscordranking"}),
     ("other", "📜 Pomoc i pozostałe", "Pomoc, changelog i inne komendy", set()),
 )
 
