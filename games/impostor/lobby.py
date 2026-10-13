@@ -106,7 +106,7 @@ class PlayerCard(ImpostorView):
 
 
 class Lobby:
-    def __init__(self, guild_id, channel_id, owner_id, capacity, hints, duration=6, dictionaries=('standard',),
+    def __init__(self, guild_id, channel_id, owner_id, capacity, hints, duration=10, dictionaries=('standard',),
                  owner_interaction=None):
         if not 3 <= capacity <= 10:
             raise ValueError('Lobby musi mieć od 3 do 10 graczy.')
@@ -124,8 +124,10 @@ class Lobby:
         self.players = [owner_id]
         self.player_interactions = {owner_id: owner_interaction} if owner_interaction else {}
         self.roles = {}
+        self.impostors_revealed = False
         self.word = None
         self.starter_id = None
+        self.start_timestamp = None
         self.end_at = None
         self.state = 'waiting'
         self.message = None
@@ -145,7 +147,8 @@ class Lobby:
     def release(self):
         if LOBBIES.get(self.key) is self:
             del LOBBIES[self.key]
-        self.view.stop()
+        if self.state != 'finished' or not self.roles or self.impostors_revealed:
+            self.view.stop()
         for task in (self.timer, self.game_timer):
             if task and task is not asyncio.current_task():
                 task.cancel()
@@ -208,7 +211,8 @@ class Lobby:
             for user_id in self.players
         }
         self.starter_id = random.choice(self.players)
-        self.end_at = int(time.time()) + self.duration * 60
+        self.start_timestamp = int(time.time())
+        self.end_at = self.start_timestamp + self.duration * 60
         self.state = 'playing'
         self.activity.set()
         self.view.render()
@@ -268,6 +272,40 @@ class Lobby:
             logger.warning('Could not update expired impostor lobby', exc_info=True)
 
     async def action(self, interaction, action):
+        if action in ('end_game', 'show_impostor'):
+            if interaction.user.id != self.owner_id:
+                await reply(interaction, 'Tylko twórca lobby może zakończyć grę lub pokazać impostorów.')
+                return
+            if self.state not in ('playing', 'finished') or not self.roles:
+                await reply(interaction, 'Nie ma aktywnej gry do zakończenia ani impostorów do pokazania.')
+                return
+            if action == 'show_impostor':
+                if self.impostors_revealed:
+                    await reply(interaction, 'Impostorzy zostali już pokazani na czacie.')
+                    return
+                impostor_ids = [user_id for user_id, role in self.roles.items() if role['impostor']]
+                names = ', '.join(f'<@{user_id}>' for user_id in impostor_ids)
+                self.impostors_revealed = True
+                await interaction.response.send_message(
+                    f'🎭 **Impostor{"zy" if len(impostor_ids) > 1 else ""}:** {names}',
+                    allowed_mentions=discord.AllowedMentions.none(),
+                )
+                self.view.render()
+                try:
+                    await self.message.edit(view=self.view, allowed_mentions=discord.AllowedMentions.none())
+                except discord.HTTPException:
+                    logger.warning('Could not update lobby after revealing impostors', exc_info=True)
+                if self.state == 'finished':
+                    self.view.stop()
+                return
+            await interaction.response.defer(ephemeral=True)
+            async with self.lock:
+                if self.state != 'playing':
+                    await reply(interaction, 'Gra jest już zakończona.')
+                    return
+                await self.finish('finished')
+                await reply(interaction, 'Gra zakończona.')
+            return
         if action == 'reveal':
             if self.state != 'playing' or interaction.user.id not in self.roles:
                 await reply(interaction, 'Nie masz aktywnej karty w tej grze.')
@@ -383,7 +421,13 @@ class LobbyView(ImpostorView):
             ))
         elif lobby.state == 'playing':
             container.add_item(discord.ui.ActionRow(
-                LobbyButton(lobby, 'reveal', 'Pokaż moją kartę', discord.ButtonStyle.primary)
+                LobbyButton(lobby, 'reveal', 'Pokaż moją kartę', discord.ButtonStyle.primary),
+                LobbyButton(lobby, 'end_game', 'Zakończ grę', discord.ButtonStyle.danger),
+                LobbyButton(lobby, 'show_impostor', 'Pokaż impostora', discord.ButtonStyle.secondary),
+            ))
+        elif lobby.state == 'finished' and lobby.roles and not lobby.impostors_revealed:
+            container.add_item(discord.ui.ActionRow(
+                LobbyButton(lobby, 'show_impostor', 'Pokaż impostora', discord.ButtonStyle.secondary),
             ))
         self.add_item(container)
 
@@ -530,7 +574,7 @@ class ImpostorPanel(ImpostorView):
         self.screen = 'home'
         self.capacity = 4
         self.hints = False
-        self.duration = 6
+        self.duration = 10
         self.dictionaries = ('standard',)
         self.dictionary_page = 0
         self.dictionary_select_page = 0
