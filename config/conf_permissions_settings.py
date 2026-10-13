@@ -6,6 +6,7 @@ CONFIG_FILE = Path('txt/permissions_config.json')
 MODERATOR_COMMANDS = {
     'resetdiscordranking': 'Resetowanie rankingu aktywności głosowej i wiadomości',
     'czysc': 'Usuwanie wiadomości z kanału',
+    'wyczysc': 'Panel usuwania wiadomości osoby z jednego lub wielu kanałów',
     'otworz': 'Przywracanie kanału z archiwum',
     'zamknij': 'Przenoszenie kanału do archiwum i blokowanie pisania',
     'clearcmds': 'Usuwanie komend slash z bieżącego serwera',

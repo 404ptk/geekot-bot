@@ -66,6 +66,8 @@ def extract_channel_privacy(channel: discord.TextChannel) -> dict:
 
 async def setup_mod_commands(client: discord.Client, tree: discord.app_commands.CommandTree, guild_id: int = None):
     guild = discord.Object(id=guild_id) if guild_id else discord.Object(id=GUILD_ID)
+    from commands.cleanup import register_cleanup_command
+    register_cleanup_command(tree, guild)
 
     # --- Zamknij kanał ---
     @tree.command(
