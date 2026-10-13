@@ -7,6 +7,7 @@ import uuid
 
 DICTIONARY_FILE = Path(__file__).resolve().parents[2] / 'data' / 'impostor' / 'dictionaries.json'
 STANDARD_DICTIONARY_FILE = Path(__file__).resolve().with_name('standard_dictionary.json')
+INTERNET_DICTIONARY_FILE = Path(__file__).resolve().with_name('polish_internet_dictionary.json')
 MAX_WORDS = 200
 MAX_DICTIONARIES = 100
 
@@ -69,6 +70,24 @@ def load_standard_dictionary():
         return words
     except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError) as error:
         raise ValueError('Wbudowany słownik Impostora jest nieprawidłowy.') from error
+
+
+def load_internet_dictionary():
+    """Load the bundled Polish internet culture dictionary."""
+    try:
+        data = json.loads(INTERNET_DICTIONARY_FILE.read_text(encoding='utf-8'))
+        words = data['words']
+        if data.get('version') != 1 or not isinstance(words, list) or len(words) != 200:
+            raise ValueError
+        for entry in words:
+            if (not isinstance(entry, dict) or not isinstance(entry.get('word'), str)
+                    or not entry['word'].strip() or not isinstance(entry.get('hints'), list)
+                    or len(entry['hints']) not in (1, 2)
+                    or any(not isinstance(hint, str) or not hint.strip() for hint in entry['hints'])):
+                raise ValueError
+        return words
+    except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError) as error:
+        raise ValueError('Wbudowany słownik polskiego internetu jest nieprawidłowy.') from error
 
 
 def load_store():

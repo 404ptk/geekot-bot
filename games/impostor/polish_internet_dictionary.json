@@ -1,0 +1,572 @@
+{
+  "version": 1,
+  "words": [
+    {
+      "word": "Ale urwał",
+      "hints": [
+        "poślizg",
+        "zima"
+      ]
+    },
+    {
+      "word": "Jestem hardkorem",
+      "hints": [
+        "kabel",
+        "wspinaczka"
+      ]
+    },
+    {
+      "word": "Paweł Jumper",
+      "hints": [
+        "murek",
+        "rower"
+      ]
+    },
+    {
+      "word": "Pani, puści ręczny!",
+      "hints": [
+        "jazda autem",
+        "baba"
+      ]
+    },
+    {
+      "word": "Kanał Zero",
+      "hints": [
+        "youtube",
+        "wywiady"
+      ]
+    },
+    {
+      "word": "Krzysztof Kononowicz",
+      "hints": [
+        "wybory",
+        "obietnice"
+      ]
+    },
+    {
+      "word": "Szkolna 17",
+      "hints": [
+        "ulica",
+        "para"
+      ]
+    },
+    {
+      "word": "Polska gurom",
+      "hints": [
+        "strongman",
+        "flaga"
+      ]
+    },
+    {
+      "word": "2137",
+      "hints": [
+        "wieczór",
+        "rocznica"
+      ]
+    },
+    {
+      "word": "Barka",
+      "hints": [
+        "godzina",
+        "papież"
+      ]
+    },
+    {
+      "word": "Makłowicz",
+      "hints": [
+        "kotek",
+        "kucharz"
+      ]
+    },
+    {
+      "word": "Boguś M2",
+      "hints": [
+        "bmw",
+        "policja"
+      ]
+    },
+    {
+      "word": "Trudne sprawy",
+      "hints": [
+        "dramat",
+        "sąsiedzi"
+      ]
+    },
+    {
+      "word": "Pamiętniki z wakacji",
+      "hints": [
+        "jeż",
+        "dokument"
+      ]
+    },
+    {
+      "word": "Testoviron",
+      "hints": [
+        "zegarek",
+        "polaki"
+      ]
+    },
+    {
+      "word": "Lech Roch Pawlak",
+      "hints": [
+        "freestyle",
+        "Francja"
+      ]
+    },
+    {
+      "word": "Będę grał w grę",
+      "hints": [
+        "sylwester",
+        "sonda"
+      ]
+    },
+    {
+      "word": "To je amelinium",
+      "hints": [
+        "krzysztof",
+        "malowanie"
+      ]
+    },
+    {
+      "word": "Major Suchodolski",
+      "hints": [
+        "były wojskowy",
+        "kucharz"
+      ]
+    },
+    {
+      "word": "Rafonix",
+      "hints": [
+        "telefon",
+        "artur"
+      ]
+    },
+    {
+      "word": "Bonzo",
+      "hints": [
+        "freestylowiec",
+        "bęc"
+      ]
+    },
+    {
+      "word": "Tiger",
+      "hints": [
+        "kotek",
+        "amelka"
+      ]
+    },
+    {
+      "word": "Somsiad",
+      "hints": [
+        "zazdrość",
+        "płot"
+      ]
+    },
+    {
+      "word": "Passat B5",
+      "hints": [
+        "motoryzacja",
+        "prestiż"
+      ]
+    },
+    {
+      "word": "Nasza Klasa",
+      "hints": [
+        "znajomi",
+        "szkolne zdjęcia"
+      ]
+    },
+    {
+      "word": "Gadu-Gadu",
+      "hints": [
+        "status",
+        "wiadomości"
+      ]
+    },
+    {
+      "word": "Chomikuj",
+      "hints": [
+        "pliki",
+        "hosting"
+      ]
+    },
+    {
+      "word": "Elektroda",
+      "hints": [
+        "fachowcy",
+        "użyj lupki"
+      ]
+    },
+    {
+      "word": "Allegro",
+      "hints": [
+        "aukcja",
+        "pomarańczowy"
+      ]
+    },
+    {
+      "word": "Filmweb",
+      "hints": [
+        "oceny",
+        "kino"
+      ]
+    },
+    {
+      "word": "Niekryty Krytyk",
+      "hints": [
+        "komentarz",
+        "telewizja"
+      ]
+    },
+    {
+      "word": "Abstrachuje",
+      "hints": [
+        "typowy",
+        "stereotypy"
+      ]
+    },
+    {
+      "word": "Cyber Marian",
+      "hints": [
+        "peruka",
+        "okularki"
+      ]
+    },
+    {
+      "word": "5 sposobów na",
+      "hints": [
+        "ciperki",
+        "majsterkowanie"
+      ]
+    },
+    {
+      "word": "MaturaToBzdura",
+      "hints": [
+        "sonda",
+        "wiedza"
+      ]
+    },
+    {
+      "word": "Kocham Gotować",
+      "hints": [
+        "parówki",
+        "przepisy"
+      ]
+    },
+    {
+      "word": "Krzysztof Gonciarz",
+      "hints": [
+        "zapytaj",
+        "Beczka"
+      ]
+    },
+    {
+      "word": "Rezi",
+      "hints": [
+        "minecraft",
+        "gaming"
+      ]
+    },
+    {
+      "word": "Blowek",
+      "hints": [
+        "Minecraft",
+        "popularność"
+      ]
+    },
+    {
+      "word": "Stuu",
+      "hints": [
+        "pandora",
+        "Team X"
+      ]
+    },
+    {
+      "word": "Gimper",
+      "hints": [
+        "krówka",
+        "grupka"
+      ]
+    },
+    {
+      "word": "Isamu",
+      "hints": [
+        "metin2",
+        "fifa"
+      ]
+    },
+    {
+      "word": "Książulo",
+      "hints": [
+        "jedzenie",
+        "recenzje"
+      ]
+    },
+    {
+      "word": "Łatwogang",
+      "hints": [
+        "transmisja",
+        "zbiórka"
+      ]
+    },
+    {
+      "word": "Ekipa",
+      "hints": [
+        "wspólny dom",
+        "influencerzy"
+      ]
+    },
+    {
+      "word": "Friz",
+      "hints": [
+        "wyzwania",
+        "ekipa"
+      ]
+    },
+    {
+      "word": "Wersow",
+      "hints": [
+        "afera",
+        "sowa"
+      ]
+    },
+    {
+      "word": "Mini Majk",
+      "hints": [
+        "duży",
+        "proca"
+      ]
+    },
+    {
+      "word": "Daniel Magical",
+      "hints": [
+        "Toruń",
+        "transmisje"
+      ]
+    },
+    {
+      "word": "Boxdel",
+      "hints": [
+        "fame",
+        "ciekawostki"
+      ]
+    },
+    {
+      "word": "Sylwester Wardęga",
+      "hints": [
+        "przebranie",
+        "śledztwa"
+      ]
+    },
+    {
+      "word": "Klocuch",
+      "hints": [
+        "recenzje",
+        "głos"
+      ]
+    },
+    {
+      "word": "Lekko Nie Będzie",
+      "hints": [
+        "kanapa",
+        "gimper"
+      ]
+    },
+    {
+      "word": "Lektor Ivona",
+      "hints": [
+        "syntezator",
+        "nostalgia"
+      ]
+    },
+    {
+      "word": "Lody Ekipy",
+      "hints": [
+        "strzelające",
+        "opakowania"
+      ]
+    },
+    {
+      "word": "Rock",
+      "hints": [
+        "czoło",
+        "rojo"
+      ]
+    },
+    {
+      "word": "Rojo",
+      "hints": [
+        "krzyk",
+        "happy wheels"
+      ]
+    },
+    {
+      "word": "Izak",
+      "hints": [
+        "csgo",
+        "jeden z pierwszych"
+      ]
+    },
+    {
+      "word": "Nervarien",
+      "hints": [
+        "liga",
+        "twitch"
+      ]
+    },
+    {
+      "word": "Arquel",
+      "hints": [
+        "truskawki",
+        "skała"
+      ]
+    },
+    {
+      "word": "Dis",
+      "hints": [
+        "grecja",
+        "sklep"
+      ]
+    },
+    {
+      "word": "Palion",
+      "hints": [
+        "zielony",
+        "youtuber"
+      ]
+    },
+    {
+      "word": "JJayJoker",
+      "hints": [
+        "legenda yt",
+        "pionier"
+      ]
+    },
+    {
+      "word": "Kapitan Bomba",
+      "hints": [
+        "tępy",
+        "mundur"
+      ]
+    },
+    {
+      "word": "Włatcy móch",
+      "hints": [
+        "szkoła",
+        "kreskówka"
+      ]
+    },
+    {
+      "word": "Bartosz Walaszek",
+      "hints": [
+        "30%",
+        "średni piosenkarz"
+      ]
+    },
+    {
+      "word": "Git Produkcja",
+      "hints": [
+        "studio",
+        "walaszek"
+      ]
+    },
+    {
+      "word": "Egzorcysta",
+      "hints": [
+        "fakturka",
+        "fachowiec"
+      ]
+    },
+    {
+      "word": "Domino",
+      "hints": [
+        "za darmoche",
+        "pomocnik"
+      ]
+    },
+    {
+      "word": "Bracia Figo Fagot",
+      "hints": [
+        "średnia muzyka",
+        "disco polo"
+      ]
+    },
+    {
+      "word": "Cypis",
+      "hints": [
+        "sobota",
+        "podstawówka"
+      ]
+    },
+    {
+      "word": "Zenek Martyniuk",
+      "hints": [
+        "oczy",
+        "wesele"
+      ]
+    },
+    {
+      "word": "Dej no 2 złote",
+      "hints": [
+        "daj pięć",
+        "ulica"
+      ]
+    },
+    {
+      "word": "Oddawaj buta, frajerze",
+      "hints": [
+        "autobus",
+        "ukrainiec"
+      ]
+    },
+    {
+      "word": "Bajo jajo",
+      "hints": [
+        "cb radio",
+        "śniadanie"
+      ]
+    },
+    {
+      "word": "Daj kamienia",
+      "hints": [
+        "mecz w piłkę nożną",
+        "twarde"
+      ]
+    },
+    {
+      "word": "Upierdolony stół",
+      "hints": [
+        "ta",
+        "pretensje"
+      ]
+    },
+    {
+      "word": "Janusz Tracz",
+      "hints": [
+        "biznes",
+        "czarny charakter"
+      ]
+    },
+    {
+      "word": "Bogdan Boner",
+      "hints": [
+        "alkohol",
+        "na bogatości"
+      ]
+    },
+    {
+      "word": "Spejson",
+      "hints": [
+        "sterydy",
+        "warszawa"
+      ]
+    },
+    {
+      "word": "Blok Ekipa",
+      "hints": [
+        "osiedle",
+        "kumple"
+      ]
+    }
+  ]
+}

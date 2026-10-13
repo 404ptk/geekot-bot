@@ -12,6 +12,7 @@ from games.impostor.dictionaries import (
     create_dictionary,
     delete_dictionary,
     list_dictionaries,
+    load_internet_dictionary,
     load_standard_dictionary,
     update_dictionary,
 )
@@ -27,7 +28,9 @@ ROLE_IMAGE_FILES = {
 }
 STANDARD_DICTIONARY_ID = 'standard'
 STANDARD_DICTIONARY_NAME = 'Zwyczajne'
-CUSTOM_DICTIONARIES_PER_PAGE = 24
+INTERNET_DICTIONARY_ID = 'polish_internet'
+INTERNET_DICTIONARY_NAME = 'Polski internet'
+CUSTOM_DICTIONARIES_PER_PAGE = 22
 # One open lobby per channel; separate channels can host separate groups.
 LOBBIES = {}
 _CREATE_LOCK = asyncio.Lock()
@@ -40,7 +43,11 @@ def impostor_count(players):
 def dictionary_names(selected, guild_id):
     selected = set(selected)
     records = list_dictionaries(guild_id)
-    names = [STANDARD_DICTIONARY_NAME] if STANDARD_DICTIONARY_ID in selected else []
+    names = []
+    if STANDARD_DICTIONARY_ID in selected:
+        names.append(STANDARD_DICTIONARY_NAME)
+    if INTERNET_DICTIONARY_ID in selected:
+        names.append(INTERNET_DICTIONARY_NAME)
     names.extend(record['name'] for record in records if record['id'] in selected)
     if not names:
         return 'Brak'
@@ -106,11 +113,12 @@ class PlayerCard(ImpostorView):
 
 
 class Lobby:
-    def __init__(self, guild_id, channel_id, owner_id, capacity, hints, duration=10, dictionaries=('standard',),
+    def __init__(self, guild_id, channel_id, owner_id, capacity, hints, duration=10,
+                 dictionaries=(STANDARD_DICTIONARY_ID, INTERNET_DICTIONARY_ID),
                  owner_interaction=None):
         if not 3 <= capacity <= 10:
             raise ValueError('Lobby musi mieć od 3 do 10 graczy.')
-        available = {STANDARD_DICTIONARY_ID} | {record['id'] for record in list_dictionaries(guild_id)}
+        available = {STANDARD_DICTIONARY_ID, INTERNET_DICTIONARY_ID} | {record['id'] for record in list_dictionaries(guild_id)}
         if not dictionaries or not set(dictionaries) <= available:
             raise ValueError('Wybierz przynajmniej jeden dostępny słownik.')
         self.key = (guild_id, channel_id)
@@ -119,7 +127,8 @@ class Lobby:
         self.impostors = impostor_count(capacity)
         self.hints = hints
         self.duration = duration
-        self.dictionaries = tuple(key for key in [STANDARD_DICTIONARY_ID, *(record['id'] for record in list_dictionaries(guild_id))]
+        self.dictionaries = tuple(key for key in [STANDARD_DICTIONARY_ID, INTERNET_DICTIONARY_ID,
+                                                  *(record['id'] for record in list_dictionaries(guild_id))]
                                   if key in dictionaries)
         self.players = [owner_id]
         self.player_interactions = {owner_id: owner_interaction} if owner_interaction else {}
@@ -167,9 +176,11 @@ class Lobby:
         entries = []
         if STANDARD_DICTIONARY_ID in self.dictionaries:
             entries.extend(load_standard_dictionary())
+        if INTERNET_DICTIONARY_ID in self.dictionaries:
+            entries.extend(load_internet_dictionary())
         custom = {record['id']: record for record in list_dictionaries(self.key[0])}
         for dictionary_id in self.dictionaries:
-            if dictionary_id == STANDARD_DICTIONARY_ID:
+            if dictionary_id in (STANDARD_DICTIONARY_ID, INTERNET_DICTIONARY_ID):
                 continue
             record = custom.get(dictionary_id)
             if not record:
@@ -495,6 +506,12 @@ class DictionarySelect(discord.ui.Select):
             description='400 wbudowanych haseł',
             default=STANDARD_DICTIONARY_ID in selected,
         )]
+        options.append(discord.SelectOption(
+            label=INTERNET_DICTIONARY_NAME,
+            value=INTERNET_DICTIONARY_ID,
+            description='200 haseł o polskim internecie i memach',
+            default=INTERNET_DICTIONARY_ID in selected,
+        ))
         options.extend(discord.SelectOption(
             label=record['name'], value=record['id'],
             description=f'{len(record["words"])} haseł', default=record['id'] in selected,
@@ -508,7 +525,8 @@ class DictionarySelect(discord.ui.Select):
         visible = {option.value for option in self.options}
         selected.difference_update(visible)
         selected.update(self.values)
-        available = [STANDARD_DICTIONARY_ID, *(record['id'] for record in list_dictionaries(view.key[0]))]
+        available = [STANDARD_DICTIONARY_ID, INTERNET_DICTIONARY_ID,
+                     *(record['id'] for record in list_dictionaries(view.key[0]))]
         view.dictionaries = tuple(key for key in available if key in selected)
         view.render()
         await interaction.response.edit_message(view=view, allowed_mentions=discord.AllowedMentions.none())
@@ -575,7 +593,7 @@ class ImpostorPanel(ImpostorView):
         self.capacity = 4
         self.hints = False
         self.duration = 10
-        self.dictionaries = ('standard',)
+        self.dictionaries = (STANDARD_DICTIONARY_ID, INTERNET_DICTIONARY_ID)
         self.dictionary_page = 0
         self.dictionary_select_page = 0
         self.selected_dictionary_id = None
@@ -592,7 +610,7 @@ class ImpostorPanel(ImpostorView):
         if self.screen == 'create':
             available_ids = {record['id'] for record in list_dictionaries(self.key[0])}
             self.dictionaries = tuple(key for key in self.dictionaries
-                                      if key == STANDARD_DICTIONARY_ID or key in available_ids)
+                                      if key in (STANDARD_DICTIONARY_ID, INTERNET_DICTIONARY_ID) or key in available_ids)
             container.add_item(discord.ui.TextDisplay(
                 '# 🎭 Stwórz lobby\nWybierz liczbę graczy, czas gry, podpowiedzi i słowniki.\n'
                 f'**Gracze:** `{self.capacity}` ▫️ **Impostorzy:** `{impostor_count(self.capacity)}`\n'
