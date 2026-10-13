@@ -8,6 +8,7 @@ import time
 import logging
 import threading
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from typing import Dict, Iterable, List, Optional, Tuple
 import io
 from PIL import Image, ImageDraw, ImageFont
@@ -132,7 +133,7 @@ def reconcile_voice_sessions(guild: Optional[discord.Guild], now: float, stats: 
     return changed
 
 
-def credit_voice_time(stats: dict, user_id: int, duration: float) -> dict:
+def credit_voice_time(stats: dict, user_id: int, duration: float, timestamp: Optional[float] = None) -> dict:
     if duration <= 1:
         return stats
 
@@ -141,6 +142,7 @@ def credit_voice_time(stats: dict, user_id: int, duration: float) -> dict:
         stats[user_id_str] = {"messages": 0, "voice_time": 0}
 
     stats[user_id_str]["voice_time"] = stats[user_id_str].get("voice_time", 0) + duration
+    stats[user_id_str]["last_voice_activity"] = timestamp if timestamp is not None else time.time()
     return stats
 
 
@@ -153,11 +155,11 @@ def flush_voice_session(user_id: int, now: float, stats: Optional[dict] = None) 
     if stats is None:
         with _stats_lock:
             loaded = load_stats()
-            loaded = credit_voice_time(loaded, user_id, duration)
+            loaded = credit_voice_time(loaded, user_id, duration, now)
             save_stats(loaded)
         return max(duration, 0.0) if duration > 1 else 0.0
 
-    credit_voice_time(stats, user_id, duration)
+    credit_voice_time(stats, user_id, duration, now)
     return max(duration, 0.0) if duration > 1 else 0.0
 
 
@@ -189,14 +191,15 @@ def save_stats(stats):
     except Exception as e:
         logging.error(f"Failed to save stats: {e}")
 
-def update_message_count(user_id):
-    stats = load_stats()
-    user_id_str = str(user_id)
-    if user_id_str not in stats:
-        stats[user_id_str] = {"messages": 0, "voice_time": 0}
-    
-    stats[user_id_str]["messages"] = stats[user_id_str].get("messages", 0) + 1
-    save_stats(stats)
+def update_message_count(user_id, timestamp=None):
+    with _stats_lock:
+        stats = load_stats()
+        user_id_str = str(user_id)
+        if user_id_str not in stats:
+            stats[user_id_str] = {"messages": 0, "voice_time": 0}
+        stats[user_id_str]["messages"] = stats[user_id_str].get("messages", 0) + 1
+        stats[user_id_str]["last_message_activity"] = timestamp if timestamp is not None else time.time()
+        save_stats(stats)
 
 def format_duration(seconds):
     td = timedelta(seconds=int(seconds))
@@ -464,6 +467,86 @@ def _draw_progress_bar(
     fill_w = max(height if ratio > 0 else 0, int(width * ratio))
     if fill_w > 0:
         _draw_rounded_rect(draw, (x, y, x + fill_w, y + height), radius=height // 2, fill=fill)
+
+
+def format_activity_timestamp(timestamp) -> str:
+    if timestamp is None:
+        return "Brak danych"
+    try:
+        return datetime.fromtimestamp(float(timestamp), ZoneInfo("Europe/Warsaw")).strftime("%d.%m.%Y · %H:%M")
+    except (TypeError, ValueError, OverflowError, OSError):
+        return "Brak danych"
+
+
+def build_user_ranking_image(
+    member: discord.Member,
+    voice_data: List[Tuple[str, float]],
+    msg_data: List[Tuple[str, int]],
+    user_stat: dict,
+    now: float,
+    voice_active: bool,
+    avatar_bytes: Optional[bytes] = None,
+) -> io.BytesIO:
+    """Render an individual card with the ranking's palette and typography."""
+    scale = 2
+    width, height = 980, 550
+    img = Image.new("RGBA", (width * scale, height * scale), COLOR_BG)
+    draw = ImageDraw.Draw(img)
+    uid = str(member.id)
+    role_color = (*member.colour.to_rgb(), 255) if member.colour.value else COLOR_TEXT
+    title_font = _load_font(20 * scale, weight="semibold")
+    name_font = _load_font(38 * scale, weight="bold")
+    small_font = _load_font(15 * scale)
+    value_font = _load_font(38 * scale, weight="bold")
+    rank_font = _load_font(19 * scale, weight="semibold")
+
+    draw.text((40 * scale, 28 * scale), "Ranking aktywności · profil", font=title_font, fill=COLOR_LABEL)
+    avatar = None
+    if avatar_bytes:
+        try:
+            with Image.open(io.BytesIO(avatar_bytes)) as source:
+                avatar = _circle_crop(source, 160 * scale)
+        except (OSError, ValueError):
+            pass
+    if avatar is None:
+        avatar = _get_cached_avatar(uid, 160 * scale)
+    avatar_x, avatar_y = 40 * scale, 76 * scale
+    img.paste(avatar, (avatar_x, avatar_y), avatar)
+    draw.ellipse((avatar_x, avatar_y, avatar_x + 160 * scale - 1, avatar_y + 160 * scale - 1),
+                 outline=role_color, width=3 * scale)
+    name = _truncate_to_width(draw, member.display_name, name_font, 700 * scale)
+    draw.text((232 * scale, 106 * scale), name, font=name_font, fill=role_color)
+    draw.text((234 * scale, 165 * scale), "Aktywność od początku pomiaru", font=small_font, fill=COLOR_LABEL)
+
+    voice_rank = _find_user_rank(voice_data, uid)
+    message_rank = _find_user_rank(msg_data, uid)
+    panels = [
+        (40, "Czas na głosowym", COLOR_ACCENT_VOICE,
+         format_duration(voice_rank[1] if voice_rank else user_stat.get("voice_time", 0)),
+         voice_rank, len(voice_data), "Ostatnia aktywność głosowa",
+         "Teraz na głosowym" if voice_active else format_activity_timestamp(user_stat.get("last_voice_activity"))),
+        (500, "Wiadomości", COLOR_ACCENT_MSG,
+         f"{int(message_rank[1] if message_rank else user_stat.get('messages', 0)):,}".replace(",", " "),
+         message_rank, len(msg_data), "Ostatnia wiadomość",
+         format_activity_timestamp(user_stat.get("last_message_activity"))),
+    ]
+    for x, label, accent, value, rank, total, last_label, last_value in panels:
+        _draw_rounded_rect(draw, (x * scale, 260 * scale, (x + 440) * scale, 478 * scale),
+                           radius=14 * scale, fill=COLOR_PANEL)
+        draw.text(((x + 22) * scale, 279 * scale), label, font=title_font, fill=accent)
+        value = _truncate_to_width(draw, value, value_font, 396 * scale)
+        draw.text(((x + 22) * scale, 313 * scale), value, font=value_font, fill=COLOR_TEXT)
+        rank_text = f"Miejsce #{rank[0]} / {total}" if rank else "Poza rankingiem"
+        draw.text(((x + 22) * scale, 368 * scale), rank_text, font=rank_font, fill=accent)
+        draw.text(((x + 22) * scale, 414 * scale), last_label, font=small_font, fill=COLOR_MUTED)
+        draw.text(((x + 22) * scale, 440 * scale), last_value, font=small_font, fill=COLOR_TEXT)
+    footer = f"Stan na {format_activity_timestamp(now)} · czas polski"
+    draw.text((40 * scale, 508 * scale), footer, font=_load_font(12 * scale), fill=COLOR_MUTED)
+    img = img.resize((width, height), Image.Resampling.LANCZOS)
+    buffer = io.BytesIO()
+    img.save(buffer, format="PNG")
+    buffer.seek(0)
+    return buffer
 
 
 def build_ranking_image(
@@ -745,7 +828,7 @@ async def commit_voice_stats():
 
             duration = now - start_time
             if duration > 1:
-                credit_voice_time(stats, user_id, duration)
+                credit_voice_time(stats, user_id, duration, now)
                 active_voice_sessions[user_id] = now
                 changed = True
 
@@ -760,7 +843,7 @@ async def setup_fun_commands(client: discord.Client, tree: app_commands.CommandT
 
     # --- Listeners ---
     async def listener_on_message(message: discord.Message):
-        if message.author.bot:
+        if message.author.bot or message.guild is None or message.guild.id != guild_id:
             return
         if message.channel.id == IGNORED_CHANNEL_ID:
             return
@@ -769,7 +852,7 @@ async def setup_fun_commands(client: discord.Client, tree: app_commands.CommandT
         if message.content.startswith(('!', '/')):
             return
 
-        update_message_count(message.author.id)
+        update_message_count(message.author.id, message.created_at.timestamp())
 
     async def listener_on_voice_state_update(member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
         if member.bot or member.guild is None or member.guild.id != guild_id:
@@ -808,8 +891,13 @@ async def setup_fun_commands(client: discord.Client, tree: app_commands.CommandT
 
     # --- Komendy ---
     @tree.command(name="ranking", description="Wyświetla ranking aktywności serwera", guild=guild_obj)
-    async def ranking(interaction: discord.Interaction):
+    @app_commands.describe(nick="Użytkownik, którego kartę aktywności chcesz zobaczyć (opcjonalnie)")
+    async def ranking(interaction: discord.Interaction, nick: Optional[discord.Member] = None):
         await interaction.response.defer()
+
+        if nick is not None and nick.bot:
+            await interaction.followup.send("Boty nie są śledzone.", ephemeral=True)
+            return
 
         now = time.time()
         guild = interaction.guild or client.get_guild(guild_id)
@@ -819,13 +907,11 @@ async def setup_fun_commands(client: discord.Client, tree: app_commands.CommandT
             if reconcile_voice_sessions(guild, now, stats):
                 save_stats(stats)
 
-        stats = load_stats()
-
         all_user_ids = set(stats.keys())
         for uid in active_voice_sessions.keys():
             all_user_ids.add(str(uid))
 
-        if not all_user_ids:
+        if not all_user_ids and nick is None:
             await interaction.followup.send("Brak danych w rankingu.", ephemeral=True)
             return
 
@@ -838,21 +924,35 @@ async def setup_fun_commands(client: discord.Client, tree: app_commands.CommandT
 
             uid_int = int(uid_str)
             if uid_int in active_voice_sessions:
-                v_time += time.time() - active_voice_sessions[uid_int]
+                v_time += max(0, now - active_voice_sessions[uid_int])
 
             if v_time > 0:
                 voice_data.append((uid_str, v_time))
             if m_count > 0:
                 msg_data.append((uid_str, m_count))
 
-        voice_data.sort(key=lambda x: x[1], reverse=True)
-        msg_data.sort(key=lambda x: x[1], reverse=True)
+        voice_data.sort(key=lambda x: (-x[1], int(x[0])))
+        msg_data.sort(key=lambda x: (-x[1], int(x[0])))
 
-        if not voice_data and not msg_data:
+        if not voice_data and not msg_data and nick is None:
             await interaction.followup.send("Brak danych w rankingu.", ephemeral=True)
             return
 
         try:
+            if nick is not None:
+                avatar_bytes = None
+                try:
+                    avatar_bytes = await asyncio.wait_for(nick.display_avatar.with_size(512).read(), timeout=10)
+                except (discord.HTTPException, asyncio.TimeoutError):
+                    logging.warning("Could not download profile ranking avatar for %s", nick.id)
+                buffer = await asyncio.to_thread(
+                    build_user_ranking_image, nick, voice_data, msg_data,
+                    stats.get(str(nick.id), {}), now,
+                    nick.id in active_voice_sessions, avatar_bytes,
+                )
+                await interaction.followup.send(
+                    file=discord.File(fp=buffer, filename=f"ranking_{nick.id}.png"))
+                return
             visible_user_ids = [uid for uid, _ in voice_data[:RANKING_TOP_N]]
             visible_user_ids.extend(uid for uid, _ in msg_data[:RANKING_TOP_N])
             visible_user_ids.append(str(interaction.user.id))
