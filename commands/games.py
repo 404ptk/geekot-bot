@@ -77,7 +77,6 @@ class GameSelect(discord.ui.Select):
     async def callback(self, interaction):
         self.view.selected_id = self.values[0]
         self.view.detail_page = 0
-        self.view.confirm_delete = False
         await self.view.refresh(interaction)
 
 
@@ -131,7 +130,6 @@ class GameModal(discord.ui.Modal):
         self.panel.selected_id = game["id"]
         self.panel.detail_page = 0
         self.panel.page = games.index(game) // PAGE_SIZE
-        self.panel.confirm_delete = False
         await self.panel.refresh(interaction)
 
     async def on_error(self, interaction, error):
@@ -146,8 +144,6 @@ class GamesPanel(discord.ui.LayoutView):
         self.page = 0
         self.selected_id = None
         self.detail_page = 0
-        self.confirm_delete = False
-        self.delete_snapshot = None
         self.message = None
         self.render()
 
@@ -159,7 +155,6 @@ class GamesPanel(discord.ui.LayoutView):
         selected = next((game for game in visible if game["id"] == self.selected_id), None)
         if selected is None:
             self.selected_id = None
-            self.confirm_delete = False
         self.clear_items()
         container = discord.ui.Container(accent_color=0x5865F2)
         container.add_item(discord.ui.TextDisplay(
@@ -194,18 +189,11 @@ class GamesPanel(discord.ui.LayoutView):
                     GameButton("detail_previous", "Poprzednia część opisu", disabled=self.detail_page == 0),
                     GameButton("detail_next", "Następna część opisu",
                                disabled=self.detail_page == len(detail_pages) - 1)))
-        if self.confirm_delete and selected:
-            container.add_item(discord.ui.TextDisplay(
-                f"**Usunąć grę „{escaped(selected['name'], 100)}”?**"))
-            container.add_item(discord.ui.ActionRow(
-                GameButton("delete_confirm", "Usuń grę", discord.ButtonStyle.danger),
-                GameButton("delete_cancel", "Anuluj")))
-        else:
-            container.add_item(discord.ui.ActionRow(
-                GameButton("add", "Dodaj grę", discord.ButtonStyle.success),
-                GameButton("edit", "Edytuj nazwę / opis", discord.ButtonStyle.primary, selected is None),
-                GameButton("delete", "Usuń", discord.ButtonStyle.danger, selected is None),
-                GameButton("refresh", "Odśwież")))
+        container.add_item(discord.ui.ActionRow(
+            GameButton("add", "Dodaj grę", discord.ButtonStyle.success),
+            GameButton("edit", "Edytuj nazwę / opis", discord.ButtonStyle.primary, selected is None),
+            GameButton("delete", "Usuń", discord.ButtonStyle.danger, selected is None),
+            GameButton("refresh", "Odśwież")))
         container.add_item(discord.ui.TextDisplay(f"-# Strona {self.page + 1} z {pages}"))
         container.add_item(discord.ui.ActionRow(
             GameButton("previous", "Poprzednia", disabled=self.page == 0),
@@ -225,38 +213,26 @@ class GamesPanel(discord.ui.LayoutView):
         if action == "add":
             await interaction.response.send_modal(GameModal(self))
             return
-        if action in ("edit", "delete", "delete_confirm") and selected is None:
+        if action in ("edit", "delete") and selected is None:
             await reply(interaction, "Gra została usunięta. Odśwież panel.")
             return
         if action == "edit":
             await interaction.response.send_modal(GameModal(self, selected))
             return
         if action == "delete":
-            self.confirm_delete = True
-            self.delete_snapshot = dict(selected)
-        elif action == "delete_confirm":
-            if not self.confirm_delete or selected != self.delete_snapshot:
-                self.confirm_delete = False
-                await reply(interaction, "Gra została zmieniona. Odśwież panel i wybierz ją ponownie.")
-                return
             games.remove(selected)
             save_games(games)
             self.selected_id = None
-            self.confirm_delete = False
         elif action == "previous":
             self.page -= 1
             self.selected_id = None
-            self.confirm_delete = False
         elif action == "next":
             self.page += 1
             self.selected_id = None
-            self.confirm_delete = False
         elif action == "detail_previous":
             self.detail_page -= 1
         elif action == "detail_next":
             self.detail_page += 1
-        elif action in ("refresh", "delete_cancel"):
-            self.confirm_delete = False
         await self.refresh(interaction)
 
     async def interaction_check(self, interaction):
