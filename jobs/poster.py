@@ -1,3 +1,4 @@
+from bot_health import failure as health_failure
 import asyncio
 from typing import Any, Dict, List
 
@@ -24,6 +25,7 @@ def post_delay_seconds(offer_count: int) -> float:
 async def post_offers(client: discord.Client, offers: List[Dict[str, Any]], channel_id: int):
     channel = await get_discord_channel(client, channel_id)
     if not channel:
+        health_failure("Nie można odczytać kanału ofert.")
         print(f"[Jobs] Cannot find Discord channel {channel_id}")
         return
 
@@ -45,6 +47,7 @@ async def post_offers(client: discord.Client, offers: List[Dict[str, Any]], chan
                 print(f"[Jobs] Failed to add dismiss reaction: {e}")
             posted += 1
         except Exception as e:
+            health_failure(e)
             failed += 1
             print(f"[Jobs] Failed to post offer {offer.get('offer_uuid')}: {e}")
 

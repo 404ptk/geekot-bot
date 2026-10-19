@@ -1,3 +1,4 @@
+from bot_health import monitor, failure as health_failure, skip as health_skip
 import io
 import json
 import os
@@ -146,6 +147,8 @@ def collect_discordfaceit_player_stats():
 
     for nickname in load_config()["players"]:
         player_data = fu.get_faceit_player_data(nickname)
+        if not player_data:
+            health_failure("Nie udało się pobrać profilu jednego z graczy Faceit.")
         if player_data:
             player_level = player_data.get("games", {}).get("cs2", {}).get("skill_level", 0)
             player_elo = player_data.get("games", {}).get("cs2", {}).get("faceit_elo", 0)
@@ -157,6 +160,8 @@ def collect_discordfaceit_player_stats():
             streak_emoji = ""
             if pid:
                 matches = fu.get_faceit_player_matches(pid, limit=5)
+                if matches is None:
+                    health_failure("Nie udało się pobrać historii meczów Faceit.")
                 if matches:
                     for match in matches:
                         result = match.get("stats", {}).get("Result")
@@ -623,6 +628,7 @@ async def _remove_previous_channel_message(state, current_channel_id):
         print(f"Faceit live image: nie udało się usunąć poprzedniej wiadomości: {exc}")
 
 
+@monitor.task('faceit_live', 'Faceit LIVE', 5 * 60)
 async def refresh_faceit_live_image_message():
     """Odświeża grafikę FACEIT LIVE — edycja jednej wiadomości co 5 min."""
     import asyncio
@@ -633,6 +639,7 @@ async def refresh_faceit_live_image_message():
 
     async with _live_image_lock:
         if not CLIENT_REF or not CLIENT_REF.is_ready():
+            health_skip("Oczekiwanie na połączenie z Discordem.")
             return
 
         config = load_config()
@@ -641,19 +648,23 @@ async def refresh_faceit_live_image_message():
         if channel is None:
             try:
                 channel = await CLIENT_REF.fetch_channel(channel_id)
-            except (discord.Forbidden, discord.NotFound, discord.HTTPException):
+            except (discord.Forbidden, discord.NotFound, discord.HTTPException) as exc:
+                health_failure(exc)
                 return
 
         if channel is None or not hasattr(channel, "send"):
+            health_failure("Kanał Faceit LIVE jest niedostępny.")
             return
 
         try:
             buffer = await asyncio.to_thread(build_faceit_live_image)
         except Exception as exc:
+            health_failure(exc)
             print(f"Faceit live image: błąd generowania grafiki: {exc}")
             return
 
         if load_config() != config:
+            health_skip("Konfiguracja zmieniła się w trakcie generowania grafiki.")
             # Settings changed while the image was being generated; retry next cycle.
             return
 
@@ -674,8 +685,10 @@ async def refresh_faceit_live_image_message():
                 await _send_live_image(channel, buffer)
             await _remove_previous_channel_message(state, channel_id)
         except (discord.Forbidden, discord.HTTPException) as exc:
+            health_failure(exc)
             print(f"Faceit live image: nie udało się zaktualizować wiadomości: {exc}")
         except Exception as exc:
+            health_failure(exc)
             print(f"Faceit live image: nieoczekiwany błąd odświeżenia: {exc}")
 
 
@@ -695,6 +708,7 @@ async def _before_faceit_live_image():
 async def start_faceit_live_tracking(client):
     global CLIENT_REF
     CLIENT_REF = client
+    monitor.modules["faceit_live"].scheduled = lambda: track_faceit_live_image.next_iteration
 
 
     # Tylko pętla grafiki — odpala pierwsze odświeżenie sama.

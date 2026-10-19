@@ -30,6 +30,7 @@ from commands import aktywnosc as aktywnosc_module
 from commands import fifa as fifa_module
 from jobs.setup import setup_jobs_watch
 from pathlib import Path
+from bot_health import monitor
 
 # Moduły w google/ — folder bez __init__.py, żeby nie kolidować z pip google.*
 sys.path.insert(0, str(Path(__file__).resolve().parent / "google"))
@@ -186,6 +187,7 @@ async def on_ready():
         print("[Startup] on_ready was called again; startup steps were already completed.")
         return
 
+    monitor.start(client)
     load_reaction_state(startup_label="Reaction state")
 
     async def run_startup_step(step_name, step_coroutine):

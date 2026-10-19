@@ -1,3 +1,4 @@
+from bot_health import failure as health_failure
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -131,6 +132,7 @@ def fetch_offers_page(
             report_provider_success("OLX")
         return payload.get("data", []) if isinstance(payload, dict) else []
     except Exception as exc:
+        health_failure(exc)
         if raise_errors:
             raise
         report_provider_error((provider or {}).get("name", "OLX"), RuntimeError(type(exc).__name__))

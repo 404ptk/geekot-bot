@@ -1,3 +1,4 @@
+from bot_health import failure as health_failure
 import requests
 
 from jobs.api_logging import report_provider_error, report_provider_success
@@ -36,6 +37,7 @@ def fetch_offers_page(filters, page: int, search: str = None, *, raise_errors: b
             report_provider_success("IsItFair")
         return payload.get("data", []) if isinstance(payload, dict) else []
     except Exception as e:
+        health_failure(e)
         if raise_errors:
             raise
         report_provider_error((provider or {}).get("name", "IsItFair"), RuntimeError(type(e).__name__))

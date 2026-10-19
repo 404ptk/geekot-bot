@@ -1,3 +1,4 @@
+from bot_health import failure as health_failure
 from jobs.constants import DEFAULT_PROVIDERS
 from jobs.filters import matches_level_filter, normalize_allowed_levels
 from jobs.providers.common import dedupe_offers
@@ -25,6 +26,7 @@ def fetch_matching_offers(filters, max_pages, providers=None):
             if kind == 'json':
                 report_provider_success(provider['name'])
         except Exception as exc:
+            health_failure(exc)
             # Request exceptions may contain credentials from query parameters.
             report_provider_error(provider['name'], RuntimeError(type(exc).__name__))
     allowed = normalize_allowed_levels(filters.get('allowed_levels'))

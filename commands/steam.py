@@ -1,3 +1,4 @@
+from bot_health import monitor, failure as health_failure, skip as health_skip
 import discord
 from discord import app_commands
 from discord.ext import tasks
@@ -275,12 +276,16 @@ async def fetch_official_cs2_news(session: aiohttp.ClientSession, count: int = 1
             if resp.status == 200:
                 data = await resp.json()
                 return data.get("appnews", {}).get("newsitems", [])
+            health_failure(f"Steam News API: HTTP {resp.status}")
             logging.error(f"Steam News API error: {resp.status}")
     except Exception as e:
+        health_failure(e)
         logging.error(f"Error fetching official CS2 news: {e}")
     return []
 
 @tasks.loop(minutes=15)
+@monitor.task('steam_official', 'Aktualizacje Steam', 15 * 60,
+              disabled=lambda: 'Źródło wyłączone w konfiguracji Steam.' if not load_steam_config()['official_enabled'] else None)
 async def monitor_official_cs2_updates_loop():
     from startup_guard import allow_background_api
 
@@ -320,6 +325,7 @@ async def monitor_official_cs2_updates_loop():
             save_cs2_official_tracking(tracking)
             logging.info(f"Discarded stale official CS2 backlog ({len(pending)} queued item(s))")
     except Exception as e:
+        health_failure(e)
         logging.error(f"Error in official CS2 updates loop: {e}")
 
 async def fetch_case_history(session: aiohttp.ClientSession, case_name: str):
@@ -411,8 +417,10 @@ async def fetch_cs2_commits(session: aiohttp.ClientSession, per_page: int = 3):
             if resp.status == 200:
                 return await resp.json()
             else:
+                health_failure(f"GitHub API: HTTP {resp.status}")
                 logging.error(f"GitHub API error: {resp.status}")
     except Exception as e:
+        health_failure(e)
         logging.error(f"Error fetching CS2 commits: {e}")
     return []
 
@@ -428,7 +436,9 @@ async def fetch_commit_details(session: aiohttp.ClientSession, commit_sha: str):
         async with session.get(url, headers=headers) as resp:
             if resp.status == 200:
                 return await resp.json()
+            health_failure(f"GitHub API: HTTP {resp.status}")
     except Exception as e:
+        health_failure(e)
         logging.error(f"Error fetching commit details: {e}")
     return None
 
@@ -488,6 +498,8 @@ def format_file_changes(files: list) -> str:
     return formatted if formatted else f"Zmieniono {len(important_files)} plik(ów)"
 
 @tasks.loop(minutes=15)
+@monitor.task('steam_github', 'Aktualizacje GitHub CS2', 15 * 60,
+              disabled=lambda: 'Źródło wyłączone w konfiguracji Steam.' if not load_steam_config()['github_enabled'] else None)
 async def monitor_cs2_updates_loop():
     """Monitoruje aktualizacje CS2 z GameTracking-CS2"""
     from startup_guard import allow_background_api
@@ -524,6 +536,7 @@ async def monitor_cs2_updates_loop():
                     logging.info(f"Nowa aktualizacja CS2: {commit_details.get('commit', {}).get('message', 'N/A').split(chr(10))[0]}")
     
     except Exception as e:
+        health_failure(e)
         logging.error(f"Error in CS2 updates loop: {e}")
 
 @tasks.loop(hours=6)
@@ -601,11 +614,15 @@ async def update_steam_history_loop():
 async def setup_steam_commands(client: discord.Client, tree: app_commands.CommandTree, guild_id: int):
     guild_obj = discord.Object(id=guild_id)
     
+    monitor.modules["steam_github"].scheduled = lambda: monitor_cs2_updates_loop.next_iteration
+    monitor.modules["steam_official"].scheduled = lambda: monitor_official_cs2_updates_loop.next_iteration
     if not monitor_cs2_updates_loop.is_running():
         monitor_cs2_updates_loop.start()
     if not monitor_official_cs2_updates_loop.is_running():
         monitor_official_cs2_updates_loop.start()
     
+    @monitor.task('steam_github_send', 'GitHub CS2 — publikacja', 30,
+                  disabled=lambda: 'Źródło wyłączone w konfiguracji Steam.' if not load_steam_config()['github_enabled'] else None)
     async def send_pending_cs2_updates():
         """Wysyła zakolejkowane aktualizacje CS2 na Discord"""
         from startup_guard import allow_background_api
@@ -620,14 +637,17 @@ async def setup_steam_commands(client: discord.Client, tree: app_commands.Comman
         pending_commits = tracking_data.get("pending_commits", [])
         
         if not pending_commits:
+            health_skip("Brak oczekujących publikacji.")
             return
         
         try:
             channel = client.get_channel(config["channel_id"])
             if not channel:
                 logging.error(f"Cannot find CS2 updates channel: {config['channel_id']}")
+                health_failure("Kanał publikacji aktualizacji CS2 jest niedostępny.")
                 return
             
+            sent_shas = set()
             for commit in pending_commits[:5]:  # Wysyłaj max 5 na raz
                 try:
                     commit_msg = commit.get("commit", {}).get("message", "N/A")
@@ -674,16 +694,23 @@ async def setup_steam_commands(client: discord.Client, tree: app_commands.Comman
                     embed.set_footer(text="GameTracking-CS2 | SteamDatabase")
                     
                     await channel.send(embed=embed)
+                    sent_shas.add(commit.get("sha"))
                     await asyncio.sleep(1)  # Delay między wiadomościami
                     
                 except Exception as e:
+                    health_failure(e)
                     logging.error(f"Error sending CS2 update: {e}")
             
-            # Wyczyść wysłane commity
-            tracking_data["pending_commits"] = []
-            save_cs2_updates_tracking(tracking_data)
+            # Preserve failed and unprocessed items so a retry can deliver them.
+            current = load_cs2_updates_tracking()
+            current["pending_commits"] = [
+                item for item in current.get("pending_commits", [])
+                if item.get("sha") not in sent_shas
+            ]
+            save_cs2_updates_tracking(current)
             
         except Exception as e:
+            health_failure(e)
             logging.error(f"Error in send_pending_cs2_updates: {e}")
     
     # Dodaj task do wysyłania commitów
@@ -691,6 +718,7 @@ async def setup_steam_commands(client: discord.Client, tree: app_commands.Comman
     async def cs2_update_sender():
         await send_pending_cs2_updates()
     
+    monitor.modules["steam_github_send"].scheduled = lambda: cs2_update_sender.next_iteration
     if not cs2_update_sender.is_running():
         cs2_update_sender.start()
 
@@ -702,6 +730,7 @@ async def setup_steam_commands(client: discord.Client, tree: app_commands.Comman
             await channel.send(view=build_official_cs2_view([item]))
             return True
         except Exception as e:
+            health_failure(e)
             logging.error(f"Error sending official CS2 announcement: {e}")
             return False
 
@@ -744,6 +773,8 @@ async def setup_steam_commands(client: discord.Client, tree: app_commands.Comman
                 break
         return found
 
+    @monitor.task('steam_official_send', 'Steam — publikacja', 30,
+                  disabled=lambda: 'Źródło wyłączone w konfiguracji Steam.' if not load_steam_config()['official_enabled'] else None)
     async def send_pending_official_cs2_updates():
         from startup_guard import allow_background_api
 
@@ -755,10 +786,12 @@ async def setup_steam_commands(client: discord.Client, tree: app_commands.Comman
         tracking = load_cs2_official_tracking()
         pending = tracking.get("pending_news", [])
         if not pending:
+            health_skip("Brak oczekujących publikacji.")
             return
         channel = client.get_channel(config["channel_id"])
         if not channel:
             logging.error(f"Cannot find CS2 updates channel: {config['channel_id']}")
+            health_failure("Kanał publikacji aktualizacji CS2 jest niedostępny.")
             return
 
         # Resolve the current newest item from Steam instead of draining an
@@ -767,6 +800,7 @@ async def setup_steam_commands(client: discord.Client, tree: app_commands.Comman
             async with aiohttp.ClientSession() as session:
                 news = await fetch_official_cs2_news(session)
         except Exception as e:
+            health_failure(e)
             logging.error(f"Error refreshing latest official CS2 announcement: {e}")
             return
         if not news:
@@ -776,6 +810,7 @@ async def setup_steam_commands(client: discord.Client, tree: app_commands.Comman
         latest_gid = str(latest_item.get("gid", ""))
         if not latest_gid:
             logging.error("Latest official CS2 announcement has no gid")
+            health_failure("Odpowiedź Steam nie zawiera identyfikatora ogłoszenia.")
             return
 
         tracking["last_gid"] = latest_gid
@@ -786,6 +821,7 @@ async def setup_steam_commands(client: discord.Client, tree: app_commands.Comman
         try:
             posted_keys = await find_posted_official_cs2_keys(channel, [latest_item])
         except (discord.Forbidden, discord.HTTPException) as e:
+            health_failure(e)
             # Without history access, sending would risk duplicating a post
             # sent by another bot instance. Leave it queued for the next run.
             logging.error(f"Cannot verify existing CS2 announcements: {e}")
@@ -820,6 +856,7 @@ async def setup_steam_commands(client: discord.Client, tree: app_commands.Comman
     async def official_cs2_update_sender():
         await send_pending_official_cs2_updates()
 
+    monitor.modules["steam_official_send"].scheduled = lambda: official_cs2_update_sender.next_iteration
     if not official_cs2_update_sender.is_running():
         official_cs2_update_sender.start()
 

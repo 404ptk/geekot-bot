@@ -33,6 +33,8 @@ def allow_background_api(label: str) -> bool:
             _end_logged.add(label)
         return True
 
+    from bot_health import skip
+    skip("Przerwa po starcie bota — oczekiwanie na koniec 30 minut.")
     if label not in _skip_logged:
         remaining_min = int(startup_freeze_remaining_seconds() // 60) + 1
         print(f"[Startup] Freeze (~{remaining_min} min): pominięto {label}")

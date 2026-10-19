@@ -1,3 +1,5 @@
+import asyncio
+from bot_health import monitor, failure as health_failure, skip as health_skip
 import json
 import re
 from datetime import datetime
@@ -673,6 +675,7 @@ def fetch_extra_channels_stats_with_comparison(
             apply_daily_comparison(stats, reference_date=reference_date, snapshots=snapshots)
             results.append(stats)
         except Exception as e:
+            health_failure(e)
             print(f"[YT Shorts] Extra channel fetch failed for {channel['url']}: {e}")
     return results
 
@@ -821,10 +824,12 @@ def fetch_youtube_stats_bundle(
     return stats, extra_stats
 
 
+@monitor.task('youtube', 'YouTube — publikacja dzienna', 30 * 60, disabled=lambda: 'Brak kanału lub klucza YouTube.' if not load_config().get('discord_channel_id') or not load_config().get('youtube_url') or not API_KEY_FILE.exists() else None)
 async def run_daily_stats_if_due(client: discord.Client) -> None:
     config = load_config()
     channel_id = config.get("discord_channel_id")
     if not channel_id:
+        health_skip("Brak ustawionego kanału publikacji.")
         return
 
     offset_hours = int(config.get("send_offset_hours", 0))
@@ -841,14 +846,17 @@ async def run_daily_stats_if_due(client: discord.Client) -> None:
         save_state,
         offset_hours=offset_hours,
     ):
+        health_skip("Dzisiejsza publikacja została już wysłana.")
         return
 
     if not is_within_send_window(send_hour, window_hours, offset_hours):
+        health_skip("Oczekiwanie na ustawioną godzinę publikacji.")
         return
 
     try:
-        stats, extra_stats = fetch_youtube_stats_bundle(config, reference_date=today)
+        stats, extra_stats = await asyncio.to_thread(fetch_youtube_stats_bundle, config, reference_date=today)
     except Exception as e:
+        health_failure(e)
         print(f"[YT Shorts] Daily fetch failed: {e}")
         return
 
@@ -856,9 +864,11 @@ async def run_daily_stats_if_due(client: discord.Client) -> None:
     if not channel:
         try:
             channel = await client.fetch_channel(int(channel_id))
-        except Exception:
+        except Exception as exc:
+            health_failure(exc)
             channel = None
     if not channel:
+        health_failure("Kanał publikacji jest niedostępny.")
         print(f"[YT Shorts] Cannot find Discord channel {channel_id}")
         return
 
@@ -868,6 +878,7 @@ async def run_daily_stats_if_due(client: discord.Client) -> None:
         await channel.send(view=view)
         print(f"[YT Shorts] Posted daily stats to #{channel_id}")
     except Exception as e:
+        health_failure(e)
         print(f"[YT Shorts] Failed to post daily stats: {e}")
         return
 
@@ -892,6 +903,8 @@ async def setup_youtube_shorts(
 ) -> None:
     global CLIENT_REF
     CLIENT_REF = client
+    monitor.modules["youtube"].scheduled = lambda: track_daily_shorts_stats.next_iteration
+    monitor.modules["youtube"].retry = lambda: run_daily_stats_if_due(client)
     guild = discord.Object(id=guild_id) if guild_id else None
 
     @tree.command(

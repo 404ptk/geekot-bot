@@ -1,3 +1,4 @@
+from bot_health import monitor
 import asyncio
 from datetime import datetime, timezone
 
@@ -12,6 +13,9 @@ from jobs.state import load_state, save_state, trim_seen_uuids
 _running_tasks = []
 
 
+@monitor.task('jobs', 'Oferty pracy', lambda: max(MIN_INTERVAL_MINUTES, int(load_config().get('interval_minutes', 30))) * 60,
+              disabled=lambda: ('Pobieranie ofert wyłączone.' if not load_config().get('enabled', True)
+                  else 'Brak włączonych API.' if not any(p.get('enabled', True) for p in load_config()['providers']) else None))
 async def check_and_post(client: discord.Client):
     from startup_guard import allow_background_api
 
@@ -74,6 +78,7 @@ async def check_and_post(client: discord.Client):
 async def watcher_worker(client: discord.Client):
     config = load_config()
     interval_minutes = max(MIN_INTERVAL_MINUTES, int(config.get("interval_minutes", 30)))
+    monitor.modules["jobs"].next_due = datetime.now(timezone.utc).timestamp() + 10
     await asyncio.sleep(10)
 
     while True:
@@ -83,10 +88,12 @@ async def watcher_worker(client: discord.Client):
             print(f"[Jobs] Watcher check failed: {type(exc).__name__}")
         config = load_config()
         interval_minutes = max(MIN_INTERVAL_MINUTES, int(config.get("interval_minutes", 30)))
+        monitor.modules["jobs"].next_due = datetime.now(timezone.utc).timestamp() + interval_minutes * 60
         await asyncio.sleep(interval_minutes * 60)
 
 
 def start_watcher(client: discord.Client):
+    monitor.modules["jobs"].retry = lambda: check_and_post(client)
     config = load_config()
     task = asyncio.create_task(watcher_worker(client))
     _running_tasks.append(task)

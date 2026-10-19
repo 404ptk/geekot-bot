@@ -11,6 +11,7 @@ from config.conf_faceit import FaceitView
 from config.conf_relations import RelationsView
 from config.conf_steam import SteamView
 from config.conf_jobs import JobsPanel
+from config.conf_health import HealthView
 from config.conf_permissions import PermissionsView
 
 
@@ -53,6 +54,7 @@ class ConfigHomeView(ConfigView):
 
 # Add future screens here; configuration navigation stays in this module.
 CONFIG_SECTIONS = (
+    ConfigSection("health", "Stan bota", "Pomiary, błędy modułów i alerty", HealthView),
     ConfigSection("relations", "Relacje", "Użytkownicy i odmiana nicków", RelationsView),
     ConfigSection("faceit", "Faceit", "Ustawienia funkcji Faceit", FaceitView),
     ConfigSection("jobs", "Praca", "Filtry ofert, kanał i źródła API", JobsPanel),

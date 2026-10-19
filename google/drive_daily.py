@@ -1,3 +1,4 @@
+from bot_health import monitor, failure as health_failure, skip as health_skip
 import asyncio
 import json
 import random
@@ -606,10 +607,12 @@ async def send_random_memory(
     return post
 
 
+@monitor.task('drive', 'Google Drive — wspomnienia', 30 * 60, disabled=lambda: 'Brak kanału, folderu lub konta Google Drive.' if not load_config().get('discord_channel_id') or not load_config().get('folder_id') or not get_service_account_path().exists() else None)
 async def run_daily_memory_if_due(client: discord.Client) -> None:
     config = load_config()
     channel_id = config.get("discord_channel_id")
     if not channel_id:
+        health_skip("Brak ustawionego kanału publikacji.")
         return
 
     offset_hours = int(config.get("send_offset_hours", 0))
@@ -626,15 +629,18 @@ async def run_daily_memory_if_due(client: discord.Client) -> None:
         save_state,
         offset_hours=offset_hours,
     ):
+        health_skip("Dzisiejsza publikacja została już wysłana.")
         return
 
     if not is_within_send_window(send_hour, window_hours, offset_hours):
+        health_skip("Oczekiwanie na ustawioną godzinę publikacji.")
         return
 
     try:
         await send_random_memory(client, int(channel_id), config)
         print(f"[Drive Daily] Posted random memory to #{channel_id}")
     except Exception as e:
+        health_failure(e)
         print(f"[Drive Daily] Daily post failed: {e}")
         return
 
@@ -657,6 +663,8 @@ async def setup_drive_daily(
 ) -> None:
     global CLIENT_REF
     CLIENT_REF = client
+    monitor.modules["drive"].scheduled = lambda: track_daily_drive_memory.next_iteration
+    monitor.modules["drive"].retry = lambda: run_daily_memory_if_due(client)
     guild = discord.Object(id=guild_id) if guild_id else None
 
     @tree.command(
