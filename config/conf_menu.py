@@ -10,6 +10,7 @@ from config.conf_panel import ConfigView, PanelContent, require_administrator
 from config.conf_faceit import FaceitView
 from config.conf_relations import RelationsView
 from config.conf_steam import SteamView
+from config.conf_jobs import JobsPanel
 from config.conf_permissions import PermissionsView
 
 
@@ -54,6 +55,7 @@ class ConfigHomeView(ConfigView):
 CONFIG_SECTIONS = (
     ConfigSection("relations", "Relacje", "Użytkownicy i odmiana nicków", RelationsView),
     ConfigSection("faceit", "Faceit", "Ustawienia funkcji Faceit", FaceitView),
+    ConfigSection("jobs", "Praca", "Filtry ofert, kanał i źródła API", JobsPanel),
     ConfigSection("steam", "Steam", "Kanał i źródła aktualizacji CS2", SteamView),
     ConfigSection("permissions", "Permisje", "Globalna ranga moderatora i dostęp do komend", PermissionsView, True),
 )

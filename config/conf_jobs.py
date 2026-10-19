@@ -1,16 +1,15 @@
-"""Single Components V2 configuration panel for job offers."""
+"""Job offer settings in the shared /config panel."""
 import copy
 import json
 import logging
 import uuid
 
 import discord
-from discord import app_commands
+from config.conf_panel import ConfigView, PanelContent
 
 from jobs.config import load_config, save_config
-from jobs.constants import DEFAULT_CONFIG, GUILD_ID, ALL_LEVELS, LEVEL_LABELS, MIN_INTERVAL_MINUTES
+from jobs.constants import DEFAULT_CONFIG, ALL_LEVELS, LEVEL_LABELS, MIN_INTERVAL_MINUTES
 from jobs.filters import filters_summary, normalize_allowed_levels
-from jobs.permissions import has_high_tier_guard
 from jobs.providers.custom import validate_provider
 
 log = logging.getLogger(__name__)
@@ -97,7 +96,7 @@ class SettingsModal(discord.ui.Modal):
         if not await self.panel.interaction_check(interaction):
             return
         if self.panel.is_finished():
-            await reply(interaction, 'Panel wygasł. Otwórz /praca ponownie.')
+            await reply(interaction, 'Panel wygasł. Otwórz /config → Praca ponownie.')
             return
         config = load_config()
         values = {key: field.value.strip() for key, field in self.inputs.items()}
@@ -142,16 +141,19 @@ class SettingsModal(discord.ui.Modal):
         await reply(interaction, 'Nie udało się zapisać ustawień. Spróbuj ponownie.')
 
 
-class JobsPanel(discord.ui.LayoutView):
+class JobsPanel(ConfigView):
     def __init__(self, owner_id):
-        super().__init__(timeout=600)
+        super().__init__(owner_id)
         self.owner_id = owner_id
         self.selected = None
         self.confirm_delete = False
         self.message = None
         self.render()
 
-    def render(self):
+    def content(self):
+        return PanelContent(title='⚙️ Praca')
+
+    def render(self, content=None):
         config = load_config()
         providers = config['providers']
         selected = next((p for p in providers if p['id'] == self.selected), None)
@@ -185,22 +187,23 @@ class JobsPanel(discord.ui.LayoutView):
         if self.confirm_delete and selected:
             container.add_item(discord.ui.TextDisplay('Potwierdź usunięcie wybranego API z konfiguracji.'))
             container.add_item(discord.ui.ActionRow(PanelButton('confirm_delete', 'Potwierdź usunięcie', discord.ButtonStyle.danger), PanelButton('cancel', 'Anuluj')))
-        container.add_item(discord.ui.ActionRow(PanelButton('reset', 'Przywróć domyślne filtry'), PanelButton('refresh', 'Odśwież')))
+        container.add_item(discord.ui.ActionRow(PanelButton('reset', 'Przywróć domyślne filtry'), PanelButton('refresh', 'Odśwież'),
+            PanelButton('home', 'Wróć do konfiguracji')))
         self.footer = discord.ui.TextDisplay('-# Zmiany zapisują się od razu. Pobieranie uwzględni je w kolejnym cyklu. Panel wygasa po 10 minutach.')
         container.add_item(self.footer)
         self.add_item(container)
-
-    async def interaction_check(self, interaction):
-        if interaction.user.id == self.owner_id and has_high_tier_guard(interaction.user):
-            return True
-        await reply(interaction, 'Panel wymaga roli High Tier Guard. Otwórz własny przez /praca.')
-        return False
+        return self
 
     async def refresh(self, interaction):
         self.render()
         await interaction.response.edit_message(view=self, allowed_mentions=MENTIONS)
 
     async def action(self, interaction, action):
+        if action == 'home':
+            from config.conf_menu import ConfigHomeView
+            view = ConfigHomeView(self.owner_id)
+            await self.show(interaction, view, view.content())
+            return
         config = load_config()
         selected = next((p for p in config['providers'] if p['id'] == self.selected), None)
         if action in ('filters', 'schedule', 'add', 'edit'):
@@ -230,7 +233,7 @@ class JobsPanel(discord.ui.LayoutView):
         for item in self.walk_children():
             if isinstance(item, (discord.ui.Button, discord.ui.Select, discord.ui.ChannelSelect)):
                 item.disabled = True
-        self.footer.content = '-# Panel wygasł. Otwórz /praca ponownie.'
+        self.footer.content = '-# Panel wygasł. Otwórz /config → Praca ponownie.'
         if self.message:
             try:
                 await self.message.edit(view=self, allowed_mentions=MENTIONS)
@@ -241,15 +244,3 @@ class JobsPanel(discord.ui.LayoutView):
         log.error('Jobs panel failed: %s', type(error).__name__)
         await reply(interaction, 'Nie udało się zaktualizować panelu. Spróbuj ponownie.')
 
-
-def register_commands(client: discord.Client, tree: app_commands.CommandTree, guild_id=None):
-    @tree.command(name='praca', description='Panel konfiguracji ofert pracy i źródeł API',
-                  guild=discord.Object(id=guild_id or GUILD_ID))
-    @app_commands.guild_only()
-    async def praca(interaction: discord.Interaction):
-        if not has_high_tier_guard(interaction.user):
-            await reply(interaction, 'Nie masz wystarczających uprawnień. Wymagana rola High Tier Guard.')
-            return
-        panel = JobsPanel(interaction.user.id)
-        await interaction.response.send_message(view=panel, ephemeral=True, allowed_mentions=MENTIONS)
-        panel.message = await interaction.original_response()
