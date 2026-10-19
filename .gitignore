@@ -47,6 +47,7 @@ _faceit_api_probe/
 txt/
 debug_match_*.json
 */__init__.py
+!/jobs/__init__.py
 
 images/faceit_avatars/*
 images/ranking_avatars/*
