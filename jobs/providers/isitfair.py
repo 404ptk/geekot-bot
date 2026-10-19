@@ -22,12 +22,12 @@ def build_params(filters, page: int, search: str = None):
     return params
 
 
-def fetch_offers_page(filters, page: int, search: str = None, *, raise_errors: bool = False):
+def fetch_offers_page(filters, page: int, search: str = None, *, raise_errors: bool = False, provider=None):
     try:
         response = requests.get(
-            API_BASE_URL,
-            params=build_params(filters, page, search=search),
-            headers=USER_AGENT,
+            (provider or {}).get("url", API_BASE_URL),
+            params={**build_params(filters, page, search=search), **(provider or {}).get("options", {}).get("params", {})},
+            headers={**USER_AGENT, **(provider or {}).get("options", {}).get("headers", {})},
             timeout=20,
         )
         response.raise_for_status()
@@ -38,21 +38,21 @@ def fetch_offers_page(filters, page: int, search: str = None, *, raise_errors: b
     except Exception as e:
         if raise_errors:
             raise
-        report_provider_error("IsItFair", e)
+        report_provider_error((provider or {}).get("name", "IsItFair"), RuntimeError(type(e).__name__))
         return []
 
 
-def fetch_offers(filters, max_pages: int, search: str = None):
+def fetch_offers(filters, max_pages: int, search: str = None, provider=None):
     offers = []
     for page in range(1, max_pages + 1):
-        page_offers = fetch_offers_page(filters, page, search=search)
+        page_offers = fetch_offers_page(filters, page, search=search, provider=provider)
         if not page_offers:
             break
         offers.extend(page_offers)
     return offers
 
 
-def collect_offers(filters, max_pages: int):
+def collect_offers(filters, max_pages: int, provider=None):
     location_city = filters.get("location_city")
     include_remote = bool(filters.get("include_remote"))
     user_search = api_filters(filters).get("search")
@@ -60,15 +60,15 @@ def collect_offers(filters, max_pages: int):
 
     if location_city:
         city_search = merge_search(user_search, location_city)
-        city_offers = fetch_offers(filters, max_pages, search=city_search)
+        city_offers = fetch_offers(filters, max_pages, search=city_search, provider=provider)
         collected.extend(offer for offer in city_offers if matches_city(offer, location_city))
 
     if include_remote:
         remote_search = merge_search(user_search, "remote")
-        remote_offers = fetch_offers(filters, max_pages, search=remote_search)
+        remote_offers = fetch_offers(filters, max_pages, search=remote_search, provider=provider)
         collected.extend(offer for offer in remote_offers if is_fully_remote(offer))
 
     if not location_city and not include_remote:
-        collected.extend(fetch_offers(filters, max_pages))
+        collected.extend(fetch_offers(filters, max_pages, provider=provider))
 
     return collected

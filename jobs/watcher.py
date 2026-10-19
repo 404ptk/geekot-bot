@@ -19,16 +19,19 @@ async def check_and_post(client: discord.Client):
         return
 
     config = load_config()
+    if not config.get("enabled", True):
+        return
     filters = config.get("filters", DEFAULT_CONFIG["filters"])
     channel_id = int(config["discord_channel_id"])
-    signature = filter_signature(filters)
+    signature = filter_signature({"filters": filters, "providers": config["providers"]})
 
     state = load_state()
     seen = set(state.get("seen_uuids", []))
     initialized = state.get("initialized", False) and state.get("filter_signature") == signature
 
     if not initialized:
-        seed_offers = fetch_matching_offers(filters, INIT_SEED_PAGES)
+        seed_offers = await asyncio.to_thread(fetch_matching_offers, filters, INIT_SEED_PAGES, config["providers"])
+        seed_offers = [offer for offer in seed_offers if offer.get("offer_uuid") not in seen]
         for offer in seed_offers:
             offer_uuid = offer.get("offer_uuid")
             if offer_uuid:
@@ -48,7 +51,7 @@ async def check_and_post(client: discord.Client):
         print(f"[Jobs] Initialized watcher with {len(seed_offers)} offers (posted on first run).")
         return
 
-    page_offers = fetch_matching_offers(filters, 1)
+    page_offers = await asyncio.to_thread(fetch_matching_offers, filters, 1, config["providers"])
     new_offers = []
     for offer in page_offers:
         offer_uuid = offer.get("offer_uuid")
@@ -74,7 +77,12 @@ async def watcher_worker(client: discord.Client):
     await asyncio.sleep(10)
 
     while True:
-        await check_and_post(client)
+        try:
+            await check_and_post(client)
+        except Exception as exc:
+            print(f"[Jobs] Watcher check failed: {type(exc).__name__}")
+        config = load_config()
+        interval_minutes = max(MIN_INTERVAL_MINUTES, int(config.get("interval_minutes", 30)))
         await asyncio.sleep(interval_minutes * 60)
 
 

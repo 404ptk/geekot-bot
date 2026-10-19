@@ -108,7 +108,7 @@ def normalize_offer(offer: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def fetch_offers_page(
-    query: Optional[str], offset: int, *, raise_errors: bool = False
+    query: Optional[str], offset: int, *, raise_errors: bool = False, provider=None
 ) -> List[Dict[str, Any]]:
     params: Dict[str, Any] = {
         "category_id": IT_CATEGORY_ID,
@@ -120,9 +120,9 @@ def fetch_offers_page(
 
     try:
         response = requests.get(
-            API_BASE_URL,
-            params=params,
-            headers=USER_AGENT,
+            (provider or {}).get("url", API_BASE_URL),
+            params={**params, **(provider or {}).get("options", {}).get("params", {})},
+            headers={**USER_AGENT, **(provider or {}).get("options", {}).get("headers", {})},
             timeout=20,
         )
         response.raise_for_status()
@@ -133,21 +133,21 @@ def fetch_offers_page(
     except Exception as exc:
         if raise_errors:
             raise
-        report_provider_error("OLX", exc)
+        report_provider_error((provider or {}).get("name", "OLX"), RuntimeError(type(exc).__name__))
         return []
 
 
-def fetch_offers(query: Optional[str], max_pages: int) -> List[Dict[str, Any]]:
+def fetch_offers(query: Optional[str], max_pages: int, provider=None) -> List[Dict[str, Any]]:
     offers = []
     for page in range(max_pages):
-        page_offers = fetch_offers_page(query, page * PAGE_SIZE)
+        page_offers = fetch_offers_page(query, page * PAGE_SIZE, provider=provider)
         if not page_offers:
             break
         offers.extend(page_offers)
     return offers
 
 
-def collect_offers(filters, max_pages: int) -> List[Dict[str, Any]]:
+def collect_offers(filters, max_pages: int, provider=None) -> List[Dict[str, Any]]:
     if filters.get("offer_status", "active") != "active":
         return []
 
@@ -158,17 +158,17 @@ def collect_offers(filters, max_pages: int) -> List[Dict[str, Any]]:
 
     if location_city:
         city_search = merge_search(user_search, location_city)
-        city_offers = fetch_offers(city_search, max_pages)
+        city_offers = fetch_offers(city_search, max_pages, provider=provider)
         for offer in city_offers:
             if matches_city({"offer_city": _city_name(offer)}, location_city):
                 collected.append(offer)
 
     if include_remote:
         remote_search = merge_search(user_search, "zdalna")
-        remote_offers = fetch_offers(remote_search, max_pages)
+        remote_offers = fetch_offers(remote_search, max_pages, provider=provider)
         collected.extend(offer for offer in remote_offers if is_fully_remote(offer))
 
     if not location_city and not include_remote:
-        collected.extend(fetch_offers(user_search, max_pages))
+        collected.extend(fetch_offers(user_search, max_pages, provider=provider))
 
     return [normalize_offer(offer) for offer in collected]

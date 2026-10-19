@@ -62,7 +62,7 @@ def build_offer_embed(offer: Dict[str, Any]) -> discord.Embed:
     embed.add_field(name="Fair offer", value=fair_label, inline=True)
 
     published = format_published_date(offer.get("offer_published_at"))
-    footer = footer_label(offer.get("offer_source"))
+    footer = offer.get("_provider_label") or footer_label(offer.get("offer_source"))
     if published:
         footer += f" • {published}"
     embed.set_footer(text=footer)

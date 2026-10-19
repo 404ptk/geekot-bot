@@ -28,7 +28,7 @@ from config import conf_menu as config_module
 from commands import wakacje as wakacje_module
 from commands import aktywnosc as aktywnosc_module
 from commands import fifa as fifa_module
-from jobs import setup_jobs_watch
+from jobs.setup import setup_jobs_watch
 from pathlib import Path
 
 # Moduły w google/ — folder bez __init__.py, żeby nie kolidować z pip google.*

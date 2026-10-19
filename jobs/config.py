@@ -1,3 +1,4 @@
+import hashlib
 import json
 from pathlib import Path
 from typing import Any, Dict
@@ -23,12 +24,10 @@ def load_json(path: Path, default):
 
 
 def save_json(path: Path, data):
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-    except Exception as e:
-        print(f"[Jobs] Failed to write {path}: {e}")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    temporary.replace(path)
 
 
 def load_config() -> Dict[str, Any]:
@@ -48,9 +47,9 @@ def load_config() -> Dict[str, Any]:
 
 def save_config(config: Dict[str, Any]):
     global _config
-    _config = config
     save_json(CONFIG_FILE, config)
+    _config = config
 
 
 def filter_signature(filters: Dict[str, Any]) -> str:
-    return json.dumps(filters, sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(json.dumps(filters, sort_keys=True, ensure_ascii=False).encode()).hexdigest()

@@ -1,68 +1,44 @@
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
 from zoneinfo import ZoneInfo
 
 import discord
 
-from jobs.api_logging import error_summary
+from jobs.config import load_config
 from jobs.providers.isitfair import fetch_offers_page as isitfair_fetch_page
 from jobs.providers.olx import fetch_offers_page as olx_fetch_page
-from jobs.providers.sources import source_label
+from jobs.providers.custom import fetch_page
 
-WARSAW_TZ = ZoneInfo("Europe/Warsaw")
-API_STATUS_EMBED_TITLE = "STAN API"
-
-MONITORED_SERVICES: List[Tuple[str, str]] = [
-    ("justjoin.it", "isitfair"),
-    ("nofluffjobs.com", "isitfair"),
-    ("pracuj.pl", "isitfair"),
-]
+WARSAW_TZ = ZoneInfo('Europe/Warsaw')
+API_STATUS_EMBED_TITLE = 'STAN API'
 
 
-def probe_service(service_id: str, provider: str) -> Tuple[bool, Optional[str]]:
-    if provider == "isitfair":
-        offers = isitfair_fetch_page(
-            {"offer_status": "active", "offer_source": service_id},
-            page=1,
-            search=service_id,
-            raise_errors=True,
-        )
-    else:
-        offers = olx_fetch_page(query=None, offset=0, raise_errors=True)
-    # An empty search result is a successful API response, not an outage.
-    return True, None
-
-
-def check_all_services() -> Tuple[Dict[str, bool], Dict[str, str]]:
-    results: Dict[str, bool] = {}
-    failures: Dict[str, str] = {}
-    for service_id, provider in MONITORED_SERVICES:
+def check_all_services():
+    results, failures = {}, {}
+    for provider in load_config()['providers']:
+        if not provider.get('enabled', True):
+            continue
+        name = provider['name']
+        # Keep separate results even when two APIs have the same display name.
+        label = f"{name} ({provider['id'][:8]})"
         try:
-            is_available, reason = probe_service(service_id, provider)
-            results[service_id] = is_available
-            if not is_available and reason:
-                failures[service_id] = reason
+            if provider['type'] == 'isitfair':
+                isitfair_fetch_page({'offer_status': 'active'}, 1, raise_errors=True, provider=provider)
+            elif provider['type'] == 'olx':
+                olx_fetch_page(None, 0, raise_errors=True, provider=provider)
+            else:
+                fetch_page(provider, 1)
+            results[label] = True
         except Exception as exc:
-            results[service_id] = False
-            failures[service_id] = error_summary(exc)
+            results[label] = False
+            failures[label] = type(exc).__name__
     return results, failures
 
 
-def build_status_embed(results: Dict[str, bool], checked_at: datetime) -> discord.Embed:
-    lines = []
-    for service_id, _ in MONITORED_SERVICES:
-        label = source_label(service_id)
-        emoji = "🟢" if results.get(service_id) else "🔴"
-        lines.append(f"{emoji} {label}")
-
-    all_ok = all(results.get(service_id) for service_id, _ in MONITORED_SERVICES)
-    local_time = checked_at.astimezone(WARSAW_TZ)
-    tz_label = local_time.strftime("%Z")
-
-    embed = discord.Embed(
-        title=API_STATUS_EMBED_TITLE,
-        description="\n".join(lines),
-        color=discord.Color.green() if all_ok else discord.Color.orange(),
-    )
-    embed.set_footer(text=f"Ostatnia próba: {local_time.strftime('%H:%M')} {tz_label}")
+def build_status_embed(results, checked_at: datetime):
+    lines = [f"{'🟢' if ok else '🔴'} {discord.utils.escape_markdown(discord.utils.escape_mentions(label))}" for label, ok in results.items()]
+    embed = discord.Embed(title=API_STATUS_EMBED_TITLE,
+                          description='\n'.join(lines) or 'Brak włączonych API.',
+                          color=discord.Color.green() if results and all(results.values()) else discord.Color.orange())
+    local = checked_at.astimezone(WARSAW_TZ)
+    embed.set_footer(text=f"Ostatnia próba: {local.strftime('%H:%M %Z')}")
     return embed
