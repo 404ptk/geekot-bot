@@ -115,7 +115,10 @@ def save_json(filename, data):
 
 
 def escaped(value, limit=100):
-    return discord.utils.escape_markdown(discord.utils.escape_mentions(str(value)))[:limit]
+    text = discord.utils.escape_mentions(str(value))
+    # These values appear inline after a label or inside a link. A temporary
+    # prefix prevents treating a leading hyphen as a Markdown list marker.
+    return discord.utils.escape_markdown("x" + text)[1:][:limit]
 
 
 def adr_sort_key(entry):
