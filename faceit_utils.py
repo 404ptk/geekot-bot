@@ -325,10 +325,6 @@ async def setup_faceit_commands(client: discord.Client, tree: app_commands.Comma
 
     await start_faceit_live_tracking(client)
 
-    from faceit.sieroty import register_sieroty_commands
+    from faceit.sieroty import register_scianka_command
 
-    register_sieroty_commands(
-        tree=tree,
-        guild=guild,
-        faceit_nick_autocomplete=faceit_nick_autocomplete,
-    )
+    register_scianka_command(tree=tree, guild=guild)
