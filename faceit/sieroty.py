@@ -302,7 +302,7 @@ class WallPanel(discord.ui.LayoutView):
             container.add_item(discord.ui.MediaGallery(
                 discord.MediaGalleryItem("attachment://sciana_wstydu.png")))
         container.add_item(discord.ui.TextDisplay(
-            f"## 🧱 Ścianka wstydu\n-# Najgorsze mecze według ADR · Wpisów: {len(self.data)}"))
+            f"-# Najgorsze mecze według ADR · Wpisów: {len(self.data)}"))
         if self.notice:
             container.add_item(discord.ui.TextDisplay(self.notice))
         container.add_item(discord.ui.Separator())
