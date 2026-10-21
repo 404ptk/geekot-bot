@@ -30,6 +30,11 @@ DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
 FOLDER_MIME = "application/vnd.google-apps.folder"
 MAX_DISCORD_BYTES = 25 * 1024 * 1024
 DAILY_EMBED_MARKER = "Losowe wspomnienie"
+MAX_MEMORY_COMMENTS = 3
+MAX_MEMORY_COMMENT_LENGTH = 120
+MAX_MEMORY_COMMENT_LINES = 2
+MEMORY_COMMENT_PREFIX = "-# \u2002<@"
+_memory_comment_lock = asyncio.Lock()
 HEIC_EXTENSIONS = {".heic", ".heif"}
 HEIC_MIMES = {"image/heic", "image/heif", "image/heif-sequence"}
 ACCEPTED_IMAGE_EXTENSIONS = {
@@ -564,6 +569,108 @@ def build_memory_view(post: Dict[str, Any], discord_filename: str) -> discord.ui
     )
     view.add_item(container)
     return view
+
+
+def append_memory_comment(
+    view: discord.ui.LayoutView, author_id: int, content: str,
+) -> bool:
+    """Append a small plain-text comment to a recognised memory card, if allowed."""
+    content = content.strip()
+    lines = content.splitlines()
+    if (
+        not content
+        or len(content) > MAX_MEMORY_COMMENT_LENGTH
+        or len(lines) > MAX_MEMORY_COMMENT_LINES
+    ):
+        return False
+
+    for container in view.children:
+        if not isinstance(container, discord.ui.Container):
+            continue
+        children = list(container.children)
+        if not any(isinstance(item, discord.ui.MediaGallery) for item in children):
+            continue
+        for index, item in enumerate(children):
+            if not (
+                isinstance(item, discord.ui.TextDisplay)
+                and item.content.startswith(f"## 📸 {DAILY_EMBED_MARKER}\n")
+            ):
+                continue
+            insertion = index + 1
+            while insertion < len(children):
+                child = children[insertion]
+                if not (
+                    isinstance(child, discord.ui.TextDisplay)
+                    and child.content.startswith(MEMORY_COMMENT_PREFIX)
+                ):
+                    break
+                insertion += 1
+            if insertion - index - 1 >= MAX_MEMORY_COMMENTS:
+                return False
+
+            # Prefix every line so user text cannot break out of small text.
+            safe_lines = [
+                discord.utils.escape_mentions(discord.utils.escape_markdown(line.strip()))
+                for line in lines
+            ]
+            comment = f"{MEMORY_COMMENT_PREFIX}{author_id}>: {safe_lines[0]}"
+            for line in safe_lines[1:]:
+                comment += f"\n-# \u2002{line}"
+            children.insert(insertion, discord.ui.TextDisplay(comment))
+            container.clear_items()
+            for child in children:
+                container.add_item(child)
+            return True
+    return False
+
+
+async def handle_memory_message(message: discord.Message, client: discord.Client) -> bool:
+    """Consume user messages only in the configured Drive album channel.
+
+    The message itself stores comments, so old cards and bot restarts need no
+    additional state. Always fetch inside the lock to avoid lost concurrent edits.
+    """
+    if message.author.bot or message.guild is None:
+        return False
+    channel_id = load_config().get("discord_channel_id")
+    if not channel_id or message.channel.id != int(channel_id):
+        return False
+
+    async with _memory_comment_lock:
+        reference = message.reference
+        if (
+            reference is not None
+            and reference.type == discord.MessageReferenceType.reply
+            and reference.message_id is not None
+            and reference.channel_id == message.channel.id
+            and not message.attachments
+            and message.content.strip()
+        ):
+            try:
+                original = await message.channel.fetch_message(reference.message_id)
+            except discord.NotFound:
+                original = None
+            except discord.HTTPException as exc:
+                # Keep the user's text when we cannot safely read/update the card.
+                print(f"[Drive Daily] Failed to fetch memory for comment: {exc}")
+                return True
+
+            if original is not None and original.author.id == client.user.id:
+                view = discord.ui.LayoutView.from_message(original, timeout=None)
+                if append_memory_comment(view, message.author.id, message.content):
+                    try:
+                        await original.edit(view=view, allowed_mentions=discord.AllowedMentions.none())
+                    except discord.HTTPException as exc:
+                        print(f"[Drive Daily] Failed to append memory comment: {exc}")
+                        return True
+
+        try:
+            await message.delete()
+        except discord.NotFound:
+            pass
+        except discord.HTTPException as exc:
+            print(f"[Drive Daily] Failed to delete album message: {exc}")
+    return True
 
 
 async def send_random_memory(

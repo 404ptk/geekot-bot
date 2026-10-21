@@ -278,6 +278,9 @@ async def on_message(message):
     if message.author == client.user:
         return
 
+    if await drive_daily_module.handle_memory_message(message, client):
+        return
+
     if "https://x.com/" in message.content:
         pattern = r"https://x\.com/[\w\d_]+/status/\d+"
         matches = re.findall(pattern, message.content)
